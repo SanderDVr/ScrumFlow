@@ -14,31 +14,21 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: {
-        classRequests: {
-          select: {
-            classId: true,
-          },
-        },
-      },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get all classes except the one user is already in or has pending requests for
-    const requestedClassIds = user.classRequests.map((r) => r.classId);
-    const excludeIds = user.classId
-      ? [...requestedClassIds, user.classId]
-      : requestedClassIds;
-
+    // Get all classes except the one user is already in
     const classes = await prisma.class.findMany({
-      where: {
-        id: {
-          notIn: excludeIds,
-        },
-      },
+      where: user.classId
+        ? {
+            id: {
+              not: user.classId,
+            },
+          }
+        : undefined,
       select: {
         id: true,
         name: true,

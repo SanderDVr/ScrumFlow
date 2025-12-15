@@ -20,7 +20,14 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Voor docenten: toon alleen hun eigen klassen
+    // Voor studenten: toon alle klassen
+    const whereClause = user.role === "teacher" 
+      ? { teacherId: user.id }
+      : {};
+
     const classes = await prisma.class.findMany({
+      where: whereClause,
       include: {
         students: {
           select: {
@@ -36,13 +43,27 @@ export async function GET() {
             name: true,
           },
         },
+        requests: {
+          where: {
+            status: "pending",
+          },
+          select: {
+            id: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    return NextResponse.json(classes);
+    // Map 'requests' to 'classRequests' voor frontend compatibility
+    const classesWithRequests = classes.map(classItem => ({
+      ...classItem,
+      classRequests: classItem.requests,
+    }));
+
+    return NextResponse.json(classesWithRequests);
   } catch (error) {
     console.error("Error fetching classes:", error);
     return NextResponse.json(
