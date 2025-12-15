@@ -15,16 +15,6 @@ type Team = {
     name: string;
   };
   members: Array<{ user: { name: string | null; image: string | null } }>;
-  projects: Array<{ id: string; name: string }>;
-};
-
-type Project = {
-  id: string;
-  name: string;
-  description: string | null;
-  team: { id: string; name: string };
-  sprints: Array<{ id: string; name: string; status: string }>;
-  _count: { userStories: number };
 };
 
 type UserData = {
@@ -44,7 +34,6 @@ export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,9 +49,8 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
-      const [teamsRes, projectsRes, userRes, classesRes] = await Promise.all([
+      const [teamsRes, userRes, classesRes] = await Promise.all([
         fetch("/api/teams"),
-        fetch("/api/projects"),
         fetch("/api/user"),
         fetch("/api/classes"),
       ]);
@@ -70,11 +58,6 @@ export default function Home() {
       if (teamsRes.ok) {
         const teamsData = await teamsRes.json();
         setTeams(teamsData);
-      }
-
-      if (projectsRes.ok) {
-        const projectsData = await projectsRes.json();
-        setProjects(projectsData);
       }
 
       if (classesRes.ok) {
@@ -154,10 +137,6 @@ export default function Home() {
       </div>
     );
   }
-
-  const activeSprints = projects.flatMap((p) =>
-    p.sprints.filter((s) => s.status === "active")
-  );
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -331,7 +310,7 @@ export default function Home() {
             ) : (
               <>
                 {/* Voor docenten: statistieken en overzicht van alle teams */}
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 sm:grid-cols-2">
                   <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
                     <div className="flex items-center justify-between">
                       <div>
@@ -364,30 +343,30 @@ export default function Home() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                          Actieve Sprints
+                          Klassen
                         </p>
                         <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                          {activeSprints.length}
+                          {classes.length}
                         </p>
                       </div>
-                      <div className="rounded-full bg-purple-100 p-3 dark:bg-purple-900">
+                      <div className="rounded-full bg-green-100 p-3 dark:bg-green-900">
                         <svg
-                          className="h-6 w-6 text-purple-600 dark:text-purple-300"
+                          className="h-6 w-6 text-green-600 dark:text-green-300"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                          />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
             {/* Classes - Alleen voor docenten */}
             {session?.user?.role === "teacher" && (
