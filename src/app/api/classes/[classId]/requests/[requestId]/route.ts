@@ -49,9 +49,8 @@ export async function PATCH(
     if (action === "accept") {
       // Accept: update request status and add student to class
       await prisma.$transaction([
-        prisma.classRequest.update({
+        prisma.classRequest.delete({
           where: { id: requestId },
-          data: { status: "accepted" },
         }),
         prisma.user.update({
           where: { id: classRequest.userId },
@@ -64,9 +63,8 @@ export async function PATCH(
       });
     } else {
       // Reject: update request status
-      await prisma.classRequest.update({
+      await prisma.classRequest.delete({
         where: { id: requestId },
-        data: { status: "rejected" },
       });
 
       return NextResponse.json({

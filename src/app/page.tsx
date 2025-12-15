@@ -10,6 +10,10 @@ type Team = {
   id: string;
   name: string;
   description: string | null;
+  class: {
+    id: string;
+    name: string;
+  };
   members: Array<{ user: { name: string | null; image: string | null } }>;
   projects: Array<{ id: string; name: string }>;
 };
@@ -321,59 +325,6 @@ export default function Home() {
                         </div>
                       </div>
                     </div>
-
-                    {/* Student projecten */}
-                    <div>
-                      <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-                        Projecten
-                      </h3>
-                      {projects.length === 0 ? (
-                        <div className="rounded-lg bg-white p-8 text-center shadow dark:bg-gray-800">
-                          <p className="text-gray-600 dark:text-gray-400">
-                            Je team heeft nog geen projecten.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          {projects.map((project) => (
-                            <Link
-                              key={project.id}
-                              href={`/projects/${project.id}`}
-                              className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg dark:bg-gray-800"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    {project.name}
-                                  </h4>
-                                </div>
-                                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                                  {project._count.userStories} stories
-                                </span>
-                              </div>
-                              {project.description && (
-                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                  {project.description}
-                                </p>
-                              )}
-                              <div className="mt-4 flex gap-2">
-                                {project.sprints
-                                  .filter((s) => s.status === "active")
-                                  .slice(0, 2)
-                                  .map((sprint) => (
-                                    <span
-                                      key={sprint.id}
-                                      className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300"
-                                    >
-                                      {sprint.name}
-                                    </span>
-                                  ))}
-                              </div>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </>
                 )}
               </>
@@ -413,47 +364,19 @@ export default function Home() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                          Projecten
+                          Actieve Sprints
                         </p>
                         <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                          {projects.length}
+                          {activeSprints.length}
                         </p>
                       </div>
-                      <div className="rounded-full bg-green-100 p-3 dark:bg-green-900">
+                      <div className="rounded-full bg-purple-100 p-3 dark:bg-purple-900">
                         <svg
-                          className="h-6 w-6 text-green-600 dark:text-green-300"
+                          className="h-6 w-6 text-purple-600 dark:text-purple-300"
                           fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      Actieve Sprints
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                      {activeSprints.length}
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-purple-100 p-3 dark:bg-purple-900">
-                    <svg
-                      className="h-6 w-6 text-purple-600 dark:text-purple-300"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -533,7 +456,7 @@ export default function Home() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Mijn Teams
+                  Teams
                 </h3>
                 <Link
                   href="/teams/new"
@@ -550,119 +473,66 @@ export default function Home() {
                   </p>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {teams.map((team) => (
-                    <Link
-                      key={team.id}
-                      href={`/teams/${team.id}`}
-                      className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg dark:bg-gray-800"
-                    >
-                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {team.name}
-                      </h4>
-                      {team.description && (
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                          {team.description}
-                        </p>
-                      )}
-                      <div className="mt-4 flex items-center justify-between">
-                        <div className="flex -space-x-2">
-                          {team.members.slice(0, 3).map((member, i) => (
-                            <div
-                              key={i}
-                              className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800"
+                <div className="space-y-6">
+                  {/* Groepeer teams per klas */}
+                  {Array.from(new Set(teams.map(t => t.class.id))).map((classId) => {
+                    const classTeams = teams.filter(t => t.class.id === classId);
+                    const className = classTeams[0]?.class.name;
+                    
+                    return (
+                      <div key={classId}>
+                        <h4 className="mb-3 text-lg font-medium text-gray-700 dark:text-gray-300">
+                          {className}
+                        </h4>
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {classTeams.map((team) => (
+                            <Link
+                              key={team.id}
+                              href={`/teams/${team.id}`}
+                              className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg dark:bg-gray-800"
                             >
-                              {member.user.image ? (
-                                <Image
-                                  src={member.user.image}
-                                  alt={member.user.name || "Member"}
-                                  width={32}
-                                  height={32}
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">
-                                  {member.user.name?.charAt(0) || "?"}
-                                </div>
+                              <h5 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                {team.name}
+                              </h5>
+                              {team.description && (
+                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {team.description}
+                                </p>
                               )}
-                            </div>
+                              <div className="mt-4">
+                                <div className="flex -space-x-2">
+                                  {team.members.slice(0, 3).map((member, i) => (
+                                    <div
+                                      key={i}
+                                      className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800"
+                                    >
+                                      {member.user.image ? (
+                                        <Image
+                                          src={member.user.image}
+                                          alt={member.user.name || "Member"}
+                                          width={32}
+                                          height={32}
+                                        />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">
+                                          {member.user.name?.charAt(0) || "?"}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {team.members.length > 3 && (
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs dark:border-gray-800 dark:bg-gray-700">
+                                      +{team.members.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </Link>
                           ))}
-                          {team.members.length > 3 && (
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs dark:border-gray-800 dark:bg-gray-700">
-                              +{team.members.length - 3}
-                            </div>
-                          )}
                         </div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {team.projects.length} project(en)
-                        </span>
                       </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Projects */}
-            <div>
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Recente Projecten
-                </h3>
-                <Link
-                  href="/projects"
-                  className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                >
-                  Bekijk alles →
-                </Link>
-              </div>
-
-              {projects.length === 0 ? (
-                <div className="rounded-lg bg-white p-8 text-center shadow dark:bg-gray-800">
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Nog geen projecten. Maak eerst een team aan!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {projects.slice(0, 4).map((project) => (
-                    <Link
-                      key={project.id}
-                      href={`/projects/${project.id}`}
-                      className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg dark:bg-gray-800"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {project.name}
-                          </h4>
-                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            {project.team.name}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                          {project._count.userStories} stories
-                        </span>
-                      </div>
-                      {project.description && (
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                          {project.description}
-                        </p>
-                      )}
-                      <div className="mt-4 flex gap-2">
-                        {project.sprints
-                          .filter((s) => s.status === "active")
-                          .slice(0, 2)
-                          .map((sprint) => (
-                            <span
-                              key={sprint.id}
-                              className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300"
-                            >
-                              {sprint.name}
-                            </span>
-                          ))}
-                      </div>
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
