@@ -50,7 +50,6 @@ model User {
   accounts      Account[]
   sessions      Session[]
   teamMembers   TeamMember[]
-  assignedStories UserStory[]
   class         Class?    @relation("ClassStudents", fields: [classId], references: [id], onDelete: SetNull)
   classRequests ClassRequest[]
   createdAt     DateTime  @default(now())
@@ -124,12 +123,15 @@ model Project {
   name        String
   description String?
   teamId      String
+  repositoryUrl String?  // GitHub repository URL
+  repositoryOwner String? // GitHub owner/org name
+  repositoryName  String? // GitHub repo name
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
   team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   sprints     Sprint[]
-  userStories UserStory[]
+  githubIssues GitHubIssue[]
 }
 
 model Sprint {
@@ -144,23 +146,61 @@ model Sprint {
   updatedAt   DateTime  @updatedAt
   
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userStories UserStory[]
+  githubIssues GitHubIssue[]
+  standups    Standup[]
+  retrospectives Retrospective[]
 }
 
-model UserStory {
+model GitHubIssue {
+  id              String    @id @default(cuid())
+  projectId       String
+  sprintId        String?
+  issueNumber     Int       // GitHub issue nummer
+  title           String
+  body            String?   // Issue beschrijving
+  state           String    // "open" of "closed"
+  htmlUrl         String    // Link naar GitHub issue
+  status          String    @default("todo") // "todo", "in_progress", "done" - voor sprint board
+  labels          String?   // JSON array van labels
+  assignees       String?   // JSON array van assignees
+  githubCreatedAt DateTime
+  githubUpdatedAt DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint          Sprint?   @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  
+  @@unique([projectId, issueNumber])
+}
+
+model Standup {
   id          String    @id @default(cuid())
-  title       String
-  description String?
-  projectId   String
-  sprintId    String?
-  assigneeId  String?
-  status      String    @default("backlog") // "backlog", "todo", "in_progress", "done"
-  priority    Int       @default(0) // Hogere nummer = hogere prioriteit
-  storyPoints Int?
+  sprintId    String
+  userId      String
+  date        DateTime  @default(now())
+  yesterday   String    // Wat heb je gisteren gedaan?
+  today       String    // Wat ga je vandaag doen?
+  blockers    String?   // Zijn er blokkades?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  sprint      Sprint?   @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  assignee    User?     @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  sprint      Sprint    @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  
+  @@unique([sprintId, userId, date])
+}
+
+model Retrospective {
+  id          String    @id @default(cuid())
+  sprintId    String
+  userId      String
+  whatWentWell String   // Wat ging goed?
+  whatCanImprove String // Wat kan beter?
+  actionItems String?   // Actiepunten
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  sprint      Sprint    @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  
+  @@unique([sprintId, userId])
 }

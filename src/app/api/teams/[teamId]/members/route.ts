@@ -74,6 +74,30 @@ export async function POST(
       );
     }
 
+    // Check of student al lid is van een ander team in deze klas
+    const existingTeamMembership = await prisma.teamMember.findFirst({
+      where: {
+        userId,
+        team: {
+          classId: team.classId,
+        },
+      },
+      include: {
+        team: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (existingTeamMembership) {
+      return NextResponse.json(
+        { error: `Student zit al in team "${existingTeamMembership.team.name}"` },
+        { status: 400 }
+      );
+    }
+
     // Check of student al lid is
     const existingMember = await prisma.teamMember.findUnique({
       where: {

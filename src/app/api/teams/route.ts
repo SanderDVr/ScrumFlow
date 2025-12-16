@@ -191,11 +191,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // Maak team aan met automatisch een project
     const team = await prisma.team.create({
       data: {
         name,
         description,
         classId,
+        projects: {
+          create: {
+            name: `${name} Project`,
+            description: `Project voor ${name}`,
+          },
+        },
       },
       include: {
         class: {
@@ -205,11 +212,20 @@ export async function POST(request: Request) {
           },
         },
         members: true,
-        projects: true,
+        projects: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
-    return NextResponse.json(team);
+    // Return team met het project
+    return NextResponse.json({
+      ...team,
+      project: team.projects[0], // Voeg het eerste (en enige) project toe als 'project' property
+    });
   } catch (error) {
     console.error("Error creating team:", error);
     return NextResponse.json(
