@@ -30,6 +30,23 @@ type Class = {
   classRequests: Array<{ id: string }>;
 };
 
+type Sprint = {
+  id: string;
+  name: string;
+  goal: string | null;
+  startDate: string;
+  endDate: string;
+  status: string;
+  project: {
+    id: string;
+    name: string;
+    team?: {
+      id: string;
+      name: string;
+    };
+  };
+};
+
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -40,19 +57,48 @@ export default function Home() {
   const [showNewClassModal, setShowNewClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState("");
   const [newClassDescription, setNewClassDescription] = useState("");
+  const [activeSprintId, setActiveSprintId] = useState<string | null>(null);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
 
   useEffect(() => {
     if (session) {
-      fetchData();
+      checkActiveSprintAndFetchData();
     }
   }, [session]);
 
+  const checkActiveSprintAndFetchData = async () => {
+    // Voor studenten: check eerst of er een actieve sprint is
+    if (session?.user?.role === "student") {
+      try {
+        const activeSprintRes = await fetch("/api/user/active-sprint");
+        if (activeSprintRes.ok) {
+          const data = await activeSprintRes.json();
+          console.log("Active sprint data:", data); // Debug log
+          if (data.activeSprint) {
+            setActiveSprintId(data.activeSprint.id);
+            router.push(`/sprints/${data.activeSprint.id}`);
+            return;
+          } else {
+            // Geen actieve sprint, maar sla wel op voor dashboard display
+            setActiveSprintId(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking active sprint:", error);
+      }
+    }
+
+    // Als geen actieve sprint of als docent, laad normale dashboard data
+    fetchData();
+  };
+
   const fetchData = async () => {
     try {
-      const [teamsRes, userRes, classesRes] = await Promise.all([
+      const [teamsRes, userRes, classesRes, sprintsRes] = await Promise.all([
         fetch("/api/teams"),
         fetch("/api/user"),
         fetch("/api/classes"),
+        fetch("/api/sprints"),
       ]);
 
       if (teamsRes.ok) {
@@ -68,6 +114,26 @@ export default function Home() {
       if (userRes.ok) {
         const user = await userRes.json();
         setUserData(user);
+      }
+
+      if (sprintsRes.ok) {
+        const sprintsData = await sprintsRes.json();
+        setSprints(sprintsData);
+      }
+
+      // Voor studenten: check ook hier de active sprint ID (zonder redirect)
+      if (session?.user?.role === "student" && !activeSprintId) {
+        try {
+          const activeSprintRes = await fetch("/api/user/active-sprint");
+          if (activeSprintRes.ok) {
+            const data = await activeSprintRes.json();
+            if (data.activeSprint) {
+              setActiveSprintId(data.activeSprint.id);
+            }
+          }
+        } catch (error) {
+          console.error("Error checking active sprint in fetchData:", error);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -258,9 +324,22 @@ export default function Home() {
                   <>
                     {/* Student team info */}
                     <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                      <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-                        Mijn Team
-                      </h3>
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                          Mijn Team
+                        </h3>
+                        {activeSprintId && (
+                          <Link
+                            href={`/sprints/${activeSprintId}`}
+                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            </svg>
+                            Ga naar Sprint
+                          </Link>
+                        )}
+                      </div>
                       <div className="space-y-4">
                         <div>
                           <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -304,6 +383,97 @@ export default function Home() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Alle sprints weergave */}
+                    {sprints.length > 0 && (
+                      <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+                        <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+                          Sprints Overzicht
+                        </h3>
+                        <div className="space-y-3">
+                          {sprints.map((sprint) => {
+                            const today = new Date();
+                            const startDate = new Date(sprint.startDate);
+                            const endDate = new Date(sprint.endDate);
+                            const isActive = today >= startDate && today <= endDate;
+                            const isPast = today > endDate;
+                            const isFuture = today < startDate;
+
+                            let statusBadge = { color: '', text: '' };
+                            if (isActive) {
+                              statusBadge = { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', text: 'Actief' };
+                            } else if (isPast) {
+                              statusBadge = { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', text: 'Afgerond' };
+                            } else if (isFuture) {
+                              statusBadge = { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', text: 'Gepland' };
+                            }
+
+                            return (
+                              <Link
+                                key={sprint.id}
+                                href={`/sprints/${sprint.id}`}
+                                className="block rounded-lg border border-gray-200 p-4 transition-all hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:hover:border-blue-500"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                                        {sprint.name}
+                                      </h4>
+                                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge.color}`}>
+                                        {statusBadge.text}
+                                      </span>
+                                    </div>
+                                    {sprint.goal && (
+                                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                        {sprint.goal}
+                                      </p>
+                                    )}
+                                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                                      <div className="flex items-center gap-1">
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        {new Date(sprint.startDate).toLocaleDateString('nl-NL')} - {new Date(sprint.endDate).toLocaleDateString('nl-NL')}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Geen actieve sprint melding */}
+                    {!activeSprintId && sprints.length === 0 && (
+                      <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center dark:border-gray-600 dark:bg-gray-800/50">
+                        <svg
+                          className="mx-auto h-12 w-12 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+                          Geen sprints
+                        </h3>
+                        <p className="mt-2 text-gray-600 dark:text-gray-400">
+                          Je docent heeft nog geen sprints aangemaakt voor je team. Zodra er een sprint is, kun je
+                          hier beginnen met werken aan je planning, stand-ups invullen en retrospectives schrijven.
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </>
@@ -379,7 +549,7 @@ export default function Home() {
                     onClick={() => setShowNewClassModal(true)}
                     className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-700"
                   >
-                    + Nieuwe Klas
+                    Nieuwe klas aanmaken
                   </button>
                 </div>
 
@@ -441,7 +611,7 @@ export default function Home() {
                   href="/teams/new"
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700"
                 >
-                  + Nieuw Team
+                  Nieuw team aanmaken
                 </Link>
               </div>
 
