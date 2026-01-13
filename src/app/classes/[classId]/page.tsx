@@ -159,12 +159,20 @@ export default function ClassDetailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => router.push("/")}
-            className="mb-4 text-blue-600 hover:text-blue-800 flex items-center"
-          >
-            ← Terug naar dashboard
-          </button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+            <button
+              onClick={() => router.push("/")}
+              className="text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              ← Terug naar dashboard
+            </button>
+            <button
+              onClick={() => router.push(`/classes/${params.classId}/backlog`)}
+              className="text-blue-600 hover:text-blue-800 flex items-center border border-blue-600 rounded px-3 py-1"
+            >
+              📋 Backlog (GitHub Issues)
+            </button>
+          </div>
           <div className="bg-white rounded-lg shadow p-6">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {classData.name}

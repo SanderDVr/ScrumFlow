@@ -297,6 +297,12 @@ export default function SprintPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {sprint.project.team.name} • {sprint.project.team.class.name}
               </p>
+              <Link
+                href={`/classes/${sprint.project.team.class.id}/backlog`}
+                className="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 border border-blue-600 rounded px-2 py-1"
+              >
+                📋 Naar Backlog (GitHub Issues)
+              </Link>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
@@ -467,50 +473,7 @@ export default function SprintPage() {
       <main className="mx-auto max-w-7xl px-4 py-8">
         {activeTab === "board" && (
           <div>
-            {backlogIssues.length > 0 && (
-              <div className="mb-6">
-                <button
-                  onClick={() => setShowBacklog(!showBacklog)}
-                  className="flex w-full items-center justify-between rounded-lg bg-white p-4 shadow dark:bg-gray-800"
-                >
-                  <div className="flex items-center gap-2">
-                    <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      Backlog ({backlogIssues.length} issues)
-                    </span>
-                  </div>
-                  <svg className={`h-5 w-5 text-gray-600 transition-transform dark:text-gray-400 ${showBacklog ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {showBacklog && (
-                  <div className="mt-4 grid gap-3 rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50 md:grid-cols-2 lg:grid-cols-3">
-                    {backlogIssues.map((issue) => (
-                      <div key={issue.id} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-                        <a
-                          href={issue.htmlUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                        >
-                          #{issue.issueNumber} {issue.title}
-                        </a>
-                        <button
-                          onClick={() => assignIssueToSprint(issue.id)}
-                          className="mt-2 w-full rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
-                        >
-                          + Toevoegen aan Sprint
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
+            {/* Backlog issues section removed as requested. Only the link to the backlog remains above. */}
             <div className="grid gap-4 md:grid-cols-3">
               {/* To Do */}
               <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
