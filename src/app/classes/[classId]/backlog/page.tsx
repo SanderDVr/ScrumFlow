@@ -19,13 +19,21 @@ type GitHubIssue = {
   assignees: string | null;
 };
 
+type Project = {
+  id: string;
+  repositoryOwner: string | null;
+  repositoryName: string | null;
+};
+
 export default function BacklogPage() {
   const { data: session, status } = useSession();
   const params = useParams();
   const classId = params?.classId as string;
 
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [showNewIssueForm, setShowNewIssueForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
@@ -46,11 +54,28 @@ export default function BacklogPage() {
       if (res.ok) {
         const data = await res.json();
         setIssues(data.issues || []);
+        setProjects(data.projects || []);
       }
     } catch (error) {
       console.error("Error fetching backlog issues:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncFromGitHub = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/classes/${classId}/backlog?sync=true`);
+      if (res.ok) {
+        const data = await res.json();
+        setIssues(data.issues || []);
+        setProjects(data.projects || []);
+      }
+    } catch (error) {
+      console.error("Error syncing from GitHub:", error);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -126,12 +151,23 @@ export default function BacklogPage() {
       <div className="max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Backlog - GitHub Issues</h1>
         <div className="mb-6 flex justify-between items-center">
-          <button
-            onClick={() => setShowNewIssueForm(!showNewIssueForm)}
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            {showNewIssueForm ? "Annuleren" : "+ Nieuw Issue"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowNewIssueForm(!showNewIssueForm)}
+              className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              {showNewIssueForm ? "Annuleren" : "+ Nieuw Issue"}
+            </button>
+            {projects.some(p => p.repositoryOwner && p.repositoryName) && (
+              <button
+                onClick={syncFromGitHub}
+                disabled={syncing}
+                className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:bg-gray-400"
+              >
+                {syncing ? "Synchroniseren..." : "🔄 Sync van GitHub"}
+              </button>
+            )}
+          </div>
         </div>
         {showNewIssueForm && (
           <form onSubmit={createIssue} className="mb-6 bg-white dark:bg-gray-800 p-4 rounded shadow">

@@ -36,6 +36,11 @@ export async function DELETE(req: NextRequest, context: { params: { classId: str
     if (!issueId) {
       return NextResponse.json({ error: 'No issueId provided.' }, { status: 400 });
     }
+    // Remove from sprint if present (setNull), then delete the issue
+    await prisma.gitHubIssue.update({
+      where: { id: issueId },
+      data: { sprintId: null },
+    });
     await prisma.gitHubIssue.delete({
       where: { id: issueId },
     });

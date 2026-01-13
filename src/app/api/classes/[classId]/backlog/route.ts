@@ -1,18 +1,115 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-// GET: Fetch all backlog issues for a class
+// GET: Fetch all backlog issues for a class and optionally sync from GitHub
 
-export async function GET(req: NextRequest, { params }: { params: { classId: string } }) {
+export async function GET(req: NextRequest, context: { params: { classId: string } } | { params: Promise<{ classId: string }> }) {
+  let params = (context.params as any);
+  if (typeof params.then === 'function') {
+    params = await params;
+  }
   const { classId } = params;
+  
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
+  // Check if sync is requested
+  const url = new URL(req.url);
+  const shouldSync = url.searchParams.get('sync') === 'true';
+  
   try {
-    // Find all projects for this class
     const projects = await prisma.project.findMany({
       where: { team: { classId } },
-      select: { id: true },
+      select: { id: true, repositoryOwner: true, repositoryName: true },
     });
     const projectIds = projects.map(p => p.id);
-    // Fetch backlog issues for all projects in this class (not assigned to any sprint)
+    
+    // Sync from GitHub if requested
+    if (shouldSync) {
+      for (const project of projects) {
+        if (project.repositoryOwner && project.repositoryName) {
+          const repoUrl = `https://api.github.com/repos/${project.repositoryOwner}/${project.repositoryName}/issues?state=all`;
+          
+          // Get GitHub access token
+          const account = await prisma.account.findFirst({
+            where: {
+              userId: session.user.id,
+              provider: 'github',
+            },
+          });
+          
+          let githubResponse;
+          if (account?.access_token) {
+            githubResponse = await fetch(repoUrl, {
+              headers: {
+                Authorization: `Bearer ${account.access_token}`,
+                Accept: 'application/vnd.github.v3+json',
+              },
+            });
+            
+            if (!githubResponse.ok && githubResponse.status === 401) {
+              githubResponse = await fetch(repoUrl, {
+                headers: {
+                  Accept: 'application/vnd.github.v3+json',
+                },
+              });
+            }
+          } else {
+            githubResponse = await fetch(repoUrl, {
+              headers: {
+                Accept: 'application/vnd.github.v3+json',
+              },
+            });
+          }
+          
+          if (githubResponse.ok) {
+            const githubIssues = await githubResponse.json();
+            
+            // Sync issues to database
+            for (const issue of githubIssues) {
+              if (issue.pull_request) continue;
+              
+              await prisma.gitHubIssue.upsert({
+                where: {
+                  projectId_issueNumber: {
+                    projectId: project.id,
+                    issueNumber: issue.number,
+                  },
+                },
+                update: {
+                  title: issue.title,
+                  body: issue.body || null,
+                  state: issue.state,
+                  htmlUrl: issue.html_url,
+                  labels: JSON.stringify(issue.labels),
+                  assignees: JSON.stringify(issue.assignees),
+                  githubUpdatedAt: new Date(issue.updated_at),
+                },
+                create: {
+                  projectId: project.id,
+                  sprintId: null,
+                  issueNumber: issue.number,
+                  title: issue.title,
+                  body: issue.body || null,
+                  state: issue.state,
+                  htmlUrl: issue.html_url,
+                  status: 'todo',
+                  labels: JSON.stringify(issue.labels),
+                  assignees: JSON.stringify(issue.assignees),
+                  githubCreatedAt: new Date(issue.created_at),
+                  githubUpdatedAt: new Date(issue.updated_at),
+                },
+              });
+            }
+          }
+        }
+      }
+    }
+    
     const issues = await prisma.gitHubIssue.findMany({
       where: {
         projectId: { in: projectIds },
@@ -20,19 +117,24 @@ export async function GET(req: NextRequest, { params }: { params: { classId: str
       },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json({ issues });
+    
+    return NextResponse.json({ issues, projects });
   } catch (error) {
+    console.error('Error in GET backlog', error);
     return NextResponse.json({ error: 'Failed to fetch backlog issues.' }, { status: 500 });
   }
 }
 
 // POST: Create a new backlog issue for a class
 
-export async function POST(req: NextRequest, { params }: { params: { classId: string } }) {
+export async function POST(req: NextRequest, context: { params: { classId: string } } | { params: Promise<{ classId: string }> }) {
+  let params = (context.params as any);
+  if (typeof params.then === 'function') {
+    params = await params;
+  }
   const { classId } = params;
   const data = await req.json();
   try {
-    // Find the first project for this class (or require projectId in data)
     let projectId = data.projectId;
     if (!projectId) {
       const project = await prisma.project.findFirst({
@@ -48,7 +150,7 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
       data: {
         ...data,
         projectId,
-        sprintId: null, // Ensure it's a backlog issue
+        sprintId: null,
       },
     });
     return NextResponse.json(issue, { status: 201 });
