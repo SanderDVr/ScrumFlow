@@ -127,7 +127,29 @@ export async function GET(req: NextRequest, context: { params: { classId: string
       orderBy: { createdAt: 'desc' },
     });
     
-    return NextResponse.json({ issues, projects, syncError });
+    // Fetch sprints if requested
+    let sprints: any[] = [];
+    const includeSprints = url.searchParams.get('includeSprints') === 'true';
+    if (includeSprints) {
+      sprints = await prisma.sprint.findMany({
+        where: {
+          project: {
+            team: { classId }
+          },
+          status: { not: 'completed' }
+        },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+        },
+        orderBy: { startDate: 'asc' },
+      });
+    }
+    
+    return NextResponse.json({ issues, projects, sprints, syncError });
   } catch (error) {
     console.error('Error in GET backlog', error);
     return NextResponse.json({ error: 'Failed to fetch backlog issues.' }, { status: 500 });

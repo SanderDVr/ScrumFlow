@@ -25,6 +25,14 @@ type Project = {
   repositoryName: string | null;
 };
 
+type Sprint = {
+  id: string;
+  name: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+};
+
 export default function BacklogPage() {
   const { data: session, status } = useSession();
   const params = useParams();
@@ -32,6 +40,7 @@ export default function BacklogPage() {
 
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showNewIssueForm, setShowNewIssueForm] = useState(false);
@@ -40,6 +49,7 @@ export default function BacklogPage() {
   const [editIssueId, setEditIssueId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [assigningIssueId, setAssigningIssueId] = useState<string | null>(null);
 
   useEffect(() => {
     if (session && classId) {
@@ -50,11 +60,12 @@ export default function BacklogPage() {
   const fetchIssues = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/classes/${classId}/backlog`);
+      const res = await fetch(`/api/classes/${classId}/backlog?includeSprints=true`);
       if (res.ok) {
         const data = await res.json();
         setIssues(data.issues || []);
         setProjects(data.projects || []);
+        setSprints(data.sprints || []);
       }
     } catch (error) {
       console.error("Error fetching backlog issues:", error);
@@ -158,6 +169,26 @@ export default function BacklogPage() {
     }
   };
 
+  const assignToSprint = async (issueId: string, sprintId: string) => {
+    try {
+      const res = await fetch(`/api/sprints/${sprintId}/issues`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issueId }),
+      });
+      if (res.ok) {
+        setAssigningIssueId(null);
+        fetchIssues();
+      } else {
+        const data = await res.json();
+        alert(`Fout bij toewijzen: ${data.error || 'Onbekende fout'}`);
+      }
+    } catch (error) {
+      console.error("Error assigning issue to sprint:", error);
+      alert("Er is een fout opgetreden bij het toewijzen van het issue.");
+    }
+  };
+
   if (status === "loading" || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -246,7 +277,41 @@ export default function BacklogPage() {
                     <div>
                       <span className="font-medium text-gray-900 dark:text-white">#{issue.issueNumber} {issue.title}</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                      {assigningIssueId === issue.id ? (
+                        <div className="flex items-center gap-2">
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                assignToSprint(issue.id, e.target.value);
+                              }
+                            }}
+                            className="text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>Kies sprint...</option>
+                            {sprints.filter(s => s.status !== 'completed').map(sprint => (
+                              <option key={sprint.id} value={sprint.id}>
+                                {sprint.name} ({sprint.status === 'active' ? 'Actief' : 'Gepland'})
+                              </option>
+                            ))}
+                          </select>
+                          <button 
+                            onClick={() => setAssigningIssueId(null)} 
+                            className="text-xs text-gray-500 hover:underline"
+                          >
+                            Annuleren
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setAssigningIssueId(issue.id)} 
+                          className="text-xs text-purple-600 hover:underline"
+                          title="Toewijzen aan sprint"
+                        >
+                          → Sprint
+                        </button>
+                      )}
                       <button onClick={() => startEditIssue(issue)} className="text-xs text-blue-600 hover:underline">Bewerken</button>
                       <button onClick={() => deleteIssue(issue.id)} className="text-xs text-red-600 hover:underline">Verwijderen</button>
                     </div>

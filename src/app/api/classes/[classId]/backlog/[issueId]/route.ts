@@ -6,25 +6,95 @@ import { getValidGitHubToken } from '@/lib/github';
 import { Octokit } from '@octokit/rest';
 
 // PATCH: Update a backlog issue
-export async function PATCH(req: NextRequest, { params }: { params: { classId: string, issueId: string } }) {
+export async function PATCH(req: NextRequest, context: { params: { classId: string, issueId: string } } | { params: Promise<{ classId: string, issueId: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Support both sync and async params (Next.js app router)
+  let params = (context.params as any);
+  if (typeof params.then === 'function') {
+    params = await params;
+  }
   const { classId, issueId } = params;
+  
   const data = await req.json();
+  const { title, body } = data;
+
   try {
-    // Find the projectId for this issue and class
-    const project = await prisma.project.findFirst({
-      where: { team: { classId } },
-      select: { id: true },
+    // Get the issue with project info
+    const issue = await prisma.gitHubIssue.findUnique({
+      where: { id: issueId },
+      include: {
+        project: {
+          select: {
+            id: true,
+            repositoryOwner: true,
+            repositoryName: true,
+            team: {
+              select: { classId: true }
+            }
+          },
+        },
+      },
     });
-    if (!project) {
-      return NextResponse.json({ error: 'No project found for this class.' }, { status: 400 });
+
+    if (!issue) {
+      return NextResponse.json({ error: 'Issue not found.' }, { status: 404 });
     }
+
+    // Verify the issue belongs to the correct class
+    if (issue.project.team?.classId !== classId) {
+      return NextResponse.json({ error: 'Issue does not belong to this class.' }, { status: 403 });
+    }
+
+    // Update on GitHub if repository is configured
+    if (issue.project.repositoryOwner && issue.project.repositoryName) {
+      const accessToken = await getValidGitHubToken(session.user.id);
+      
+      if (accessToken) {
+        const octokit = new Octokit({ auth: accessToken });
+        
+        try {
+          await octokit.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+            owner: issue.project.repositoryOwner,
+            repo: issue.project.repositoryName,
+            issue_number: issue.issueNumber,
+            title: title || issue.title,
+            body: body !== undefined ? body : issue.body,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28'
+            }
+          });
+        } catch (githubError: any) {
+          console.error('Error updating GitHub issue:', githubError.message);
+          // Continue to update locally even if GitHub update fails
+          if (githubError.status === 401 || githubError.status === 403) {
+            // Update locally but warn user
+            const updated = await prisma.gitHubIssue.update({
+              where: { id: issueId },
+              data: { title, body },
+            });
+            return NextResponse.json({ 
+              ...updated,
+              warning: 'Issue bijgewerkt in de app, maar kon niet worden bijgewerkt op GitHub. Controleer je rechten.' 
+            });
+          }
+        }
+      }
+    }
+
+    // Update in database
     const updated = await prisma.gitHubIssue.update({
-      where: { id: issueId, projectId: project.id, sprintId: null },
-      data,
+      where: { id: issueId },
+      data: { title, body },
     });
+    
     return NextResponse.json(updated);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update backlog issue.' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to update backlog issue:', error);
+    return NextResponse.json({ error: 'Failed to update backlog issue.', details: error?.message }, { status: 500 });
   }
 }
 
