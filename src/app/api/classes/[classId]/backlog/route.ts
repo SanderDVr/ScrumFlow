@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getValidGitHubToken } from '@/lib/github';
 
 // GET: Fetch all backlog issues for a class and optionally sync from GitHub
 
@@ -28,83 +29,90 @@ export async function GET(req: NextRequest, context: { params: { classId: string
     });
     const projectIds = projects.map(p => p.id);
     
+    let syncError = null;
+    
     // Sync from GitHub if requested
     if (shouldSync) {
       for (const project of projects) {
         if (project.repositoryOwner && project.repositoryName) {
-          const repoUrl = `https://api.github.com/repos/${project.repositoryOwner}/${project.repositoryName}/issues?state=all`;
-          
-          // Get GitHub access token
-          const account = await prisma.account.findFirst({
-            where: {
-              userId: session.user.id,
-              provider: 'github',
-            },
-          });
-          
-          let githubResponse;
-          if (account?.access_token) {
-            githubResponse = await fetch(repoUrl, {
-              headers: {
-                Authorization: `Bearer ${account.access_token}`,
-                Accept: 'application/vnd.github.v3+json',
-              },
-            });
+          try {
+            const repoUrl = `https://api.github.com/repos/${project.repositoryOwner}/${project.repositoryName}/issues?state=open`;
             
-            if (!githubResponse.ok && githubResponse.status === 401) {
+            // Get valid GitHub access token (will auto-refresh if expired)
+            const accessToken = await getValidGitHubToken(session.user.id);
+            
+            let githubResponse;
+            if (accessToken) {
+              githubResponse = await fetch(repoUrl, {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  Accept: 'application/vnd.github.v3+json',
+                },
+              });
+              
+              if (!githubResponse.ok && githubResponse.status === 401) {
+                githubResponse = await fetch(repoUrl, {
+                  headers: {
+                    Accept: 'application/vnd.github.v3+json',
+                  },
+                });
+              }
+            } else {
               githubResponse = await fetch(repoUrl, {
                 headers: {
                   Accept: 'application/vnd.github.v3+json',
                 },
               });
             }
-          } else {
-            githubResponse = await fetch(repoUrl, {
-              headers: {
-                Accept: 'application/vnd.github.v3+json',
-              },
-            });
-          }
-          
-          if (githubResponse.ok) {
-            const githubIssues = await githubResponse.json();
             
-            // Sync issues to database
-            for (const issue of githubIssues) {
-              if (issue.pull_request) continue;
+            if (githubResponse.ok) {
+              const githubIssues = await githubResponse.json();
               
-              await prisma.gitHubIssue.upsert({
-                where: {
-                  projectId_issueNumber: {
-                    projectId: project.id,
-                    issueNumber: issue.number,
+              // Sync issues to database
+              for (const issue of githubIssues) {
+                if (issue.pull_request) continue;
+                
+                await prisma.gitHubIssue.upsert({
+                  where: {
+                    projectId_issueNumber: {
+                      projectId: project.id,
+                      issueNumber: issue.number,
+                    },
                   },
-                },
-                update: {
-                  title: issue.title,
-                  body: issue.body || null,
-                  state: issue.state,
-                  htmlUrl: issue.html_url,
-                  labels: JSON.stringify(issue.labels),
-                  assignees: JSON.stringify(issue.assignees),
-                  githubUpdatedAt: new Date(issue.updated_at),
-                },
-                create: {
-                  projectId: project.id,
-                  sprintId: null,
-                  issueNumber: issue.number,
-                  title: issue.title,
-                  body: issue.body || null,
-                  state: issue.state,
-                  htmlUrl: issue.html_url,
-                  status: 'todo',
-                  labels: JSON.stringify(issue.labels),
-                  assignees: JSON.stringify(issue.assignees),
-                  githubCreatedAt: new Date(issue.created_at),
-                  githubUpdatedAt: new Date(issue.updated_at),
-                },
-              });
+                  update: {
+                    title: issue.title,
+                    body: issue.body || null,
+                    state: issue.state,
+                    htmlUrl: issue.html_url,
+                    labels: JSON.stringify(issue.labels),
+                    assignees: JSON.stringify(issue.assignees),
+                    githubUpdatedAt: new Date(issue.updated_at),
+                  },
+                  create: {
+                    projectId: project.id,
+                    sprintId: null,
+                    issueNumber: issue.number,
+                    title: issue.title,
+                    body: issue.body || null,
+                    state: issue.state,
+                    htmlUrl: issue.html_url,
+                    status: 'todo',
+                    labels: JSON.stringify(issue.labels),
+                    assignees: JSON.stringify(issue.assignees),
+                    githubCreatedAt: new Date(issue.created_at),
+                    githubUpdatedAt: new Date(issue.updated_at),
+                  },
+                });
+              }
+            } else {
+              console.error(`GitHub API error: ${githubResponse.status}`);
+              syncError = `GitHub API returned status ${githubResponse.status}`;
             }
+          } catch (fetchError: any) {
+            console.error('GitHub sync error:', fetchError);
+            syncError = fetchError.cause?.code === 'ENOTFOUND' 
+              ? 'Cannot reach GitHub API. Check your internet connection.' 
+              : 'Failed to sync from GitHub';
           }
         }
       }
@@ -114,11 +122,12 @@ export async function GET(req: NextRequest, context: { params: { classId: string
       where: {
         projectId: { in: projectIds },
         sprintId: null,
+        state: 'open',
       },
       orderBy: { createdAt: 'desc' },
     });
     
-    return NextResponse.json({ issues, projects });
+    return NextResponse.json({ issues, projects, syncError });
   } catch (error) {
     console.error('Error in GET backlog', error);
     return NextResponse.json({ error: 'Failed to fetch backlog issues.' }, { status: 500 });

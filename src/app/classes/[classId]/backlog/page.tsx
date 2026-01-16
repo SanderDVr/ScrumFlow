@@ -71,9 +71,16 @@ export default function BacklogPage() {
         const data = await res.json();
         setIssues(data.issues || []);
         setProjects(data.projects || []);
+        
+        if (data.syncError) {
+          alert(`Sync waarschuwing: ${data.syncError}`);
+        }
+      } else {
+        alert('Sync mislukt. Probeer het later opnieuw.');
       }
     } catch (error) {
       console.error("Error syncing from GitHub:", error);
+      alert('Sync mislukt. Controleer je internetverbinding.');
     } finally {
       setSyncing(false);
     }
@@ -125,16 +132,29 @@ export default function BacklogPage() {
   };
 
   const deleteIssue = async (issueId: string) => {
-    if (!window.confirm("Weet je zeker dat je dit issue wilt verwijderen?")) return;
+    console.log('deleteIssue called with issueId:', issueId);
+    console.log('classId:', classId);
+    // Temporarily removed confirm dialog for testing
     try {
+      console.log('Sending DELETE request to:', `/api/classes/${classId}/backlog/${issueId}`);
       const res = await fetch(`/api/classes/${classId}/backlog/${issueId}`, {
         method: "DELETE",
       });
+      console.log('Response status:', res.status);
+      const data = await res.json();
+      console.log('Response data:', data);
+      
       if (res.ok) {
+        if (data.warning) {
+          alert(data.warning);
+        }
         fetchIssues();
+      } else {
+        alert(`Fout bij verwijderen: ${data.error || 'Onbekende fout'}`);
       }
     } catch (error) {
       console.error("Error deleting issue:", error);
+      alert("Er is een fout opgetreden bij het verwijderen van het issue.");
     }
   };
 

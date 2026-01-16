@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { getValidGitHubToken } from "@/lib/github";
 
 // GET /api/sprints/[sprintId]/issues - Haal GitHub issues op
 export async function GET(
@@ -46,24 +47,18 @@ export async function GET(
       console.log(`Fetching issues from ${sprint.project.repositoryOwner}/${sprint.project.repositoryName}`);
       console.log(`Full URL: ${repoUrl}`);
       
-      // Probeer GitHub access token van de ingelogde gebruiker te krijgen
-      const account = await prisma.account.findFirst({
-        where: {
-          userId: session.user.id,
-          provider: "github",
-        },
-      });
+      // Get valid GitHub access token (will auto-refresh if expired)
+      const accessToken = await getValidGitHubToken(session.user.id);
       
-      console.log(`GitHub account found: ${account ? 'yes' : 'no'}`);
-      console.log(`Access token available: ${account?.access_token ? 'yes (length: ' + account.access_token.length + ')' : 'no'}`);
+      console.log(`Valid access token available: ${accessToken ? 'yes' : 'no'}`);
 
       let githubResponse;
       
-      if (account?.access_token) {
+      if (accessToken) {
         console.log("Using authenticated GitHub API request");
         githubResponse = await fetch(repoUrl, {
           headers: {
-            Authorization: `Bearer ${account.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             Accept: "application/vnd.github.v3+json",
           },
         });

@@ -9,6 +9,13 @@ export const authOptions: NextAuthOptions = {
     GithubProvider({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
+      authorization: {
+        url: "https://github.com/login/oauth/authorize",
+        params: {
+          scope: "read:user user:email repo",
+        },
+      },
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   session: {
