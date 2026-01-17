@@ -177,15 +177,33 @@ export async function POST(req: NextRequest, context: { params: { classId: strin
       }
       projectId = project.id;
     }
+    
+    // Get the highest issue number for this project to generate a local issue number
+    const lastIssue = await prisma.gitHubIssue.findFirst({
+      where: { projectId },
+      orderBy: { issueNumber: 'desc' },
+      select: { issueNumber: true },
+    });
+    const nextIssueNumber = (lastIssue?.issueNumber || 0) + 1;
+    
+    const now = new Date();
     const issue = await prisma.gitHubIssue.create({
       data: {
-        ...data,
         projectId,
         sprintId: null,
+        issueNumber: nextIssueNumber,
+        title: data.title,
+        body: data.body || null,
+        state: 'open',
+        htmlUrl: '', // Local issue, no GitHub URL
+        status: 'todo',
+        githubCreatedAt: now,
+        githubUpdatedAt: now,
       },
     });
     return NextResponse.json(issue, { status: 201 });
   } catch (error) {
+    console.error('Error creating backlog issue:', error);
     return NextResponse.json({ error: 'Failed to create backlog issue.' }, { status: 500 });
   }
 }
