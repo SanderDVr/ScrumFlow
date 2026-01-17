@@ -25,12 +25,21 @@ type Project = {
   repositoryName: string | null;
 };
 
+type SprintIssue = {
+  id: string;
+  issueNumber: number;
+  title: string;
+  status: string;
+  state: string;
+};
+
 type Sprint = {
   id: string;
   name: string;
   status: string;
   startDate: string;
   endDate: string;
+  githubIssues?: SprintIssue[];
 };
 
 export default function BacklogPage() {
@@ -50,6 +59,7 @@ export default function BacklogPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [assigningIssueId, setAssigningIssueId] = useState<string | null>(null);
+  const [movingIssueId, setMovingIssueId] = useState<string | null>(null);
 
   useEffect(() => {
     if (session && classId) {
@@ -178,6 +188,7 @@ export default function BacklogPage() {
       });
       if (res.ok) {
         setAssigningIssueId(null);
+        setMovingIssueId(null);
         fetchIssues();
       } else {
         const data = await res.json();
@@ -186,6 +197,26 @@ export default function BacklogPage() {
     } catch (error) {
       console.error("Error assigning issue to sprint:", error);
       alert("Er is een fout opgetreden bij het toewijzen van het issue.");
+    }
+  };
+
+  const moveToBacklog = async (issueId: string) => {
+    try {
+      const res = await fetch(`/api/classes/${classId}/backlog/${issueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sprintId: null }),
+      });
+      if (res.ok) {
+        setMovingIssueId(null);
+        fetchIssues();
+      } else {
+        const data = await res.json();
+        alert(`Fout bij verplaatsen: ${data.error || 'Onbekende fout'}`);
+      }
+    } catch (error) {
+      console.error("Error moving issue to backlog:", error);
+      alert("Er is een fout opgetreden bij het verplaatsen van het issue.");
     }
   };
 
@@ -199,8 +230,116 @@ export default function BacklogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Backlog - GitHub Issues</h1>
+        
+        {/* Sprint Overview */}
+        {sprints.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Sprint Overzicht</h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {sprints.map(sprint => (
+                <div 
+                  key={sprint.id} 
+                  className={`bg-white dark:bg-gray-800 p-4 rounded shadow border-l-4 ${
+                    sprint.status === 'active' 
+                      ? 'border-green-500' 
+                      : sprint.status === 'completed' 
+                        ? 'border-gray-400' 
+                        : 'border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium text-gray-900 dark:text-white">{sprint.name}</h3>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      sprint.status === 'active' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                        : sprint.status === 'completed' 
+                          ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' 
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                    }`}>
+                      {sprint.status === 'active' ? 'Actief' : sprint.status === 'completed' ? 'Afgerond' : 'Gepland'}
+                    </span>
+                  </div>
+                  {sprint.githubIssues && sprint.githubIssues.length > 0 ? (
+                    <div className="space-y-2">
+                      {sprint.githubIssues.map(issue => (
+                        <div 
+                          key={issue.id} 
+                          className={`text-sm ${
+                            issue.status === 'done' || issue.state === 'closed'
+                              ? 'text-gray-400' 
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              issue.status === 'done' || issue.state === 'closed'
+                                ? 'bg-green-500'
+                                : issue.status === 'in_progress'
+                                  ? 'bg-yellow-500'
+                                  : 'bg-gray-400'
+                            }`}></span>
+                            <span className={issue.status === 'done' || issue.state === 'closed' ? 'line-through' : ''}>
+                              #{issue.issueNumber} {issue.title}
+                            </span>
+                          </div>
+                          {movingIssueId === issue.id ? (
+                            <div className="ml-4 mt-1 flex items-center gap-2">
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value === 'backlog') {
+                                    moveToBacklog(issue.id);
+                                  } else if (e.target.value) {
+                                    assignToSprint(issue.id, e.target.value);
+                                  }
+                                }}
+                                className="text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                defaultValue=""
+                              >
+                                <option value="" disabled>Verplaats naar...</option>
+                                <option value="backlog">📋 Backlog</option>
+                                {sprints.filter(s => s.id !== sprint.id && s.status !== 'completed').map(s => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name} ({s.status === 'active' ? 'Actief' : 'Gepland'})
+                                  </option>
+                                ))}
+                              </select>
+                              <button 
+                                onClick={() => setMovingIssueId(null)} 
+                                className="text-xs text-gray-500 hover:underline"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setMovingIssueId(issue.id)} 
+                              className="ml-4 text-xs text-purple-600 hover:underline"
+                            >
+                              Verplaatsen
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">Geen issues</p>
+                  )}
+                  <Link 
+                    href={`/sprints/${sprint.id}`}
+                    className="text-xs text-blue-600 hover:underline mt-2 inline-block"
+                  >
+                    Bekijk sprint →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Backlog Section */}
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Backlog (Niet toegewezen)</h2>
         <div className="mb-6 flex justify-between items-center">
           <div className="flex gap-2">
             <button

@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
   const { classId, issueId } = params;
   
   const data = await req.json();
-  const { title, body } = data;
+  const { title, body, sprintId } = data;
 
   try {
     // Get the issue with project info
@@ -49,8 +49,19 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
       return NextResponse.json({ error: 'Issue does not belong to this class.' }, { status: 403 });
     }
 
-    // Update on GitHub if repository is configured
-    if (issue.project.repositoryOwner && issue.project.repositoryName) {
+    // Build the update data
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (body !== undefined) updateData.body = body;
+    if (sprintId !== undefined) {
+      updateData.sprintId = sprintId; // Can be null to move to backlog
+      if (sprintId === null) {
+        updateData.status = 'todo'; // Reset status when moving to backlog
+      }
+    }
+
+    // Update on GitHub if repository is configured and title/body changed
+    if ((title !== undefined || body !== undefined) && issue.project.repositoryOwner && issue.project.repositoryName) {
       const accessToken = await getValidGitHubToken(session.user.id);
       
       if (accessToken) {
@@ -74,7 +85,7 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
             // Update locally but warn user
             const updated = await prisma.gitHubIssue.update({
               where: { id: issueId },
-              data: { title, body },
+              data: updateData,
             });
             return NextResponse.json({ 
               ...updated,
@@ -88,7 +99,7 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
     // Update in database
     const updated = await prisma.gitHubIssue.update({
       where: { id: issueId },
-      data: { title, body },
+      data: updateData,
     });
     
     return NextResponse.json(updated);
