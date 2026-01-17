@@ -802,6 +802,7 @@ export default function Home() {
                 <div className="text-xs text-gray-500 dark:text-gray-400">Docent</div>
               </div>
             </div>
+            <Link href="/classes" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">Klassen beheren</Link>
             <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
           </div>
         </div>
@@ -810,76 +811,13 @@ export default function Home() {
       <main className="mx-auto max-w-7xl px-4 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Overzicht van je klassen en teams</p>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Overzicht van je teams</p>
         </div>
 
         {loading ? (
           <div className="text-center"><div className="text-gray-600 dark:text-gray-400">Laden...</div></div>
         ) : (
           <div className="space-y-8">
-            {/* Stats */}
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Teams</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{teams.length}</p>
-                  </div>
-                  <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-900">
-                    <svg className="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Klassen</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{classes.length}</p>
-                  </div>
-                  <div className="rounded-full bg-green-100 p-3 dark:bg-green-900">
-                    <svg className="h-6 w-6 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Classes */}
-            <div>
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Klassen</h3>
-                <button onClick={() => setShowNewClassModal(true)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">Nieuwe klas aanmaken</button>
-              </div>
-              {classes.length === 0 ? (
-                <div className="rounded-lg bg-white p-8 text-center shadow dark:bg-gray-800">
-                  <p className="text-gray-600 dark:text-gray-400">Je hebt nog geen klassen. Maak je eerste klas aan!</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {classes.map((classItem) => (
-                    <Link key={classItem.id} href={`/classes/${classItem.id}`} className="block rounded-lg bg-white p-6 shadow hover:shadow-lg dark:bg-gray-800">
-                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{classItem.name}</h4>
-                      {classItem.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{classItem.description}</p>}
-                      <div className="mt-4 flex items-center justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">{classItem.students.length} student(en)</span>
-                        <div className="flex items-center gap-2">
-                          {classItem.classRequests && classItem.classRequests.length > 0 && (
-                            <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-300">
-                              {classItem.classRequests.length} aanvra{classItem.classRequests.length === 1 ? 'ag' : 'gen'}
-                            </span>
-                          )}
-                          <span className="text-gray-600 dark:text-gray-400">{classItem.teams.length} team(s)</span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Teams */}
             <div>
               <div className="mb-4 flex items-center justify-between">
@@ -923,29 +861,6 @@ export default function Home() {
           </div>
         )}
       </main>
-
-      {/* Modal voor nieuwe klas */}
-      {showNewClassModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
-            <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">Nieuwe Klas Aanmaken</h2>
-            <form onSubmit={createClass} className="space-y-4">
-              <div>
-                <label htmlFor="className" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Klasnaam</label>
-                <input type="text" id="className" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="bijv. SD2A" required />
-              </div>
-              <div>
-                <label htmlFor="classDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Beschrijving (optioneel)</label>
-                <textarea id="classDescription" value={newClassDescription} onChange={(e) => setNewClassDescription(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Beschrijving van de klas" rows={3} />
-              </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => { setShowNewClassModal(false); setNewClassName(""); setNewClassDescription(""); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">Annuleren</button>
-                <button type="submit" className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">Aanmaken</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
