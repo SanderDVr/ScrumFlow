@@ -499,13 +499,6 @@ export default function Home() {
                 </Link>
               )}
               
-              {/* Retrospective */}
-              <button
-                onClick={() => setActiveTab("retro")}
-                className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium ${activeTab === "retro" ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}
-              >
-                Retrospective
-              </button>
             </nav>
           </div>
         </div>
@@ -559,15 +552,56 @@ export default function Home() {
         {/* Content */}
         <main className="mx-auto max-w-7xl px-4 py-8">
           <div className="flex gap-6">
-            {/* Left Sidebar - Daily Stand-up Button */}
-            <div className="w-48 shrink-0">
-              <button
-                onClick={() => setActiveTab("standup")}
-                className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "standup" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
-              >
-                📝 Daily Stand-up
-              </button>
-            </div>
+            {/* Left Sidebar - Daily Stand-up & Retrospective Buttons */}
+            {(() => {
+              const today = new Date();
+              const sprintStart = selectedSprint ? new Date(selectedSprint.startDate) : null;
+              const sprintEnd = selectedSprint ? new Date(selectedSprint.endDate) : null;
+              const isActiveOrFinished = sprintStart && sprintEnd && today >= sprintStart;
+              
+              return (
+                <div className="w-48 shrink-0 space-y-3">
+                  {/* Sprint Dates */}
+                  {selectedSprint && (
+                    <div className="rounded-lg bg-white p-3 shadow dark:bg-gray-800">
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Sprint periode</div>
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {new Date(selectedSprint.startDate).toLocaleDateString('nl-NL')} - {new Date(selectedSprint.endDate).toLocaleDateString('nl-NL')}
+                      </div>
+                      {sprintStart && sprintEnd && (
+                        <div className="mt-1 text-xs">
+                          {today < sprintStart ? (
+                            <span className="text-blue-600 dark:text-blue-400">Gepland</span>
+                          ) : today > sprintEnd ? (
+                            <span className="text-gray-500 dark:text-gray-400">Afgerond</span>
+                          ) : (
+                            <span className="text-green-600 dark:text-green-400">Actief</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Show buttons only for active or finished sprints */}
+                  {isActiveOrFinished && (
+                    <>
+                      <button
+                        onClick={() => setActiveTab("standup")}
+                        className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "standup" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                      >
+                        📝 Daily Stand-up
+                      </button>
+                      <button
+                        onClick={() => setActiveTab("retro")}
+                        className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "retro" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                      >
+                        🔄 Retrospective
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Main Content */}
             <div className="flex-1">

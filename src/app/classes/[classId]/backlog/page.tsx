@@ -293,9 +293,7 @@ export default function BacklogPage() {
                               #{issue.issueNumber} {issue.title}
                             </span>
                           </div>
-                          {issue.status === 'done' || issue.state === 'closed' ? (
-                            <span className="ml-4 text-xs text-gray-500 italic">✓ Afgerond</span>
-                          ) : movingIssueId === issue.id ? (
+                          {issue.status === 'done' || issue.state === 'closed' ? null : movingIssueId === issue.id ? (
                             <div className="ml-4 mt-1 flex items-center gap-2">
                               <select
                                 onChange={(e) => {
