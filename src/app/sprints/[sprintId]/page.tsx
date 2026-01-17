@@ -745,6 +745,7 @@ function IssueCard({
   onMove: (issueId: string, status: string) => void;
 }) {
   const labels = issue.labels ? JSON.parse(issue.labels) : [];
+  const isClosed = issue.state === "closed" || issue.status === "done";
   
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
@@ -790,17 +791,18 @@ function IssueCard({
           {issue.state}
         </span>
       </div>
-      <div className="mt-3">
-        <select
-          value={issue.status}
-          onChange={(e) => onMove(issue.id, e.target.value)}
-          className="w-full text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-        >
-          <option value="todo">To Do</option>
-          <option value="in_progress">Doing</option>
-          <option value="done">Done</option>
-        </select>
-      </div>
+      {!isClosed && (
+        <div className="mt-3">
+          <select
+            value={issue.status}
+            onChange={(e) => onMove(issue.id, e.target.value)}
+            className="w-full text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          >
+            <option value="todo">To Do</option>
+            <option value="in_progress">Doing</option>
+          </select>
+        </div>
+      )}
     </div>
   );
 }

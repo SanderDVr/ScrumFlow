@@ -97,6 +97,9 @@ export async function GET(
 
           console.log(`Syncing issue #${issue.number}: ${issue.title}`);
           
+          // Determine status: closed issues automatically go to 'done'
+          const statusForIssue = issue.state === 'closed' ? 'done' : undefined;
+          
           await prisma.gitHubIssue.upsert({
             where: {
               projectId_issueNumber: {
@@ -112,6 +115,8 @@ export async function GET(
               labels: JSON.stringify(issue.labels),
               assignees: JSON.stringify(issue.assignees),
               githubUpdatedAt: new Date(issue.updated_at),
+              // If issue was closed on GitHub, move to done
+              ...(issue.state === 'closed' ? { status: 'done' } : {}),
             },
             create: {
               projectId: sprint.project.id,
@@ -121,7 +126,7 @@ export async function GET(
               body: issue.body || null,
               state: issue.state,
               htmlUrl: issue.html_url,
-              status: "todo",
+              status: statusForIssue || "todo",
               labels: JSON.stringify(issue.labels),
               assignees: JSON.stringify(issue.assignees),
               githubCreatedAt: new Date(issue.created_at),
@@ -210,7 +215,31 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  // Prevent manually moving issues to "done" - this should only happen via GitHub
+  if (status === "done") {
+    return NextResponse.json({ 
+      error: "Issues kunnen alleen naar 'Done' worden verplaatst door ze te sluiten op GitHub." 
+    }, { status: 400 });
+  }
+
   try {
+    // Check if issue is already closed - closed issues cannot be moved
+    const existingIssue = await prisma.gitHubIssue.findUnique({
+      where: { id: issueId },
+      select: { state: true, status: true },
+    });
+
+    if (!existingIssue) {
+      return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+    }
+
+    // Don't allow moving closed issues
+    if (existingIssue.state === "closed" || existingIssue.status === "done") {
+      return NextResponse.json({ 
+        error: "Gesloten issues kunnen niet worden verplaatst." 
+      }, { status: 400 });
+    }
+
     const issue = await prisma.gitHubIssue.update({
       where: { id: issueId },
       data: { status },
