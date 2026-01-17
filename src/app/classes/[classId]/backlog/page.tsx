@@ -231,6 +231,15 @@ export default function BacklogPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
+        <Link 
+          href="/" 
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 mb-4"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Terug naar dashboard
+        </Link>
         <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Backlog - GitHub Issues</h1>
         
         {/* Sprint Overview */}
