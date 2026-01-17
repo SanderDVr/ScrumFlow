@@ -86,3 +86,57 @@ export async function GET(
     );
   }
 }
+
+// PATCH /api/classes/[classId] - Update een klas
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ classId: string }> }
+) {
+  try {
+    const { classId } = await params;
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
+
+    if (!user || user.role !== "teacher") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const classData = await prisma.class.findUnique({
+      where: { id: classId },
+    });
+
+    if (!classData) {
+      return NextResponse.json({ error: "Class not found" }, { status: 404 });
+    }
+
+    if (classData.teacherId !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, description } = body;
+
+    const updatedClass = await prisma.class.update({
+      where: { id: classId },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+      },
+    });
+
+    return NextResponse.json(updatedClass);
+  } catch (error) {
+    console.error("Error updating class:", error);
+    return NextResponse.json(
+      { error: "Failed to update class" },
+      { status: 500 }
+    );
+  }
+}
