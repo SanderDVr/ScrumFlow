@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, context: { params: { classId: string
       for (const project of projects) {
         if (project.repositoryOwner && project.repositoryName) {
           try {
-            const repoUrl = `https://api.github.com/repos/${project.repositoryOwner}/${project.repositoryName}/issues?state=open`;
+            const repoUrl = `https://api.github.com/repos/${project.repositoryOwner}/${project.repositoryName}/issues?state=all`;
             
             // Get valid GitHub access token (will auto-refresh if expired)
             const accessToken = await getValidGitHubToken(session.user.id);
@@ -72,6 +72,9 @@ export async function GET(req: NextRequest, context: { params: { classId: string
               for (const issue of githubIssues) {
                 if (issue.pull_request) continue;
                 
+                // Determine status: closed issues automatically go to 'done'
+                const statusForIssue = issue.state === 'closed' ? 'done' : undefined;
+                
                 await prisma.gitHubIssue.upsert({
                   where: {
                     projectId_issueNumber: {
@@ -87,6 +90,8 @@ export async function GET(req: NextRequest, context: { params: { classId: string
                     labels: JSON.stringify(issue.labels),
                     assignees: JSON.stringify(issue.assignees),
                     githubUpdatedAt: new Date(issue.updated_at),
+                    // If issue was closed on GitHub, move to done
+                    ...(issue.state === 'closed' ? { status: 'done' } : {}),
                   },
                   create: {
                     projectId: project.id,
@@ -96,7 +101,7 @@ export async function GET(req: NextRequest, context: { params: { classId: string
                     body: issue.body || null,
                     state: issue.state,
                     htmlUrl: issue.html_url,
-                    status: 'todo',
+                    status: statusForIssue || 'todo',
                     labels: JSON.stringify(issue.labels),
                     assignees: JSON.stringify(issue.assignees),
                     githubCreatedAt: new Date(issue.created_at),
