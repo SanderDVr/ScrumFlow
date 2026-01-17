@@ -448,33 +448,8 @@ export default function Home() {
         <header className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
           <div className="mx-auto max-w-7xl px-4 py-4">
             <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
-                {/* Sprint Selector */}
-                <select
-                  value={selectedSprintId || ""}
-                  onChange={(e) => setSelectedSprintId(e.target.value)}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                  {sprints.map((sprint) => {
-                    const today = new Date();
-                    const startDate = new Date(sprint.startDate);
-                    const endDate = new Date(sprint.endDate);
-                    const isActive = today >= startDate && today <= endDate;
-                    return (
-                      <option key={sprint.id} value={sprint.id}>
-                        {sprint.name} {isActive ? "(Actief)" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <div className="flex items-center gap-4">
-                {selectedSprint?.project.team?.class?.id && (
-                  <Link href={`/classes/${selectedSprint.project.team.class.id}/backlog`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 border border-blue-600 rounded px-3 py-1.5">
-                    📋 Backlog
-                  </Link>
-                )}
                 <div className="flex items-center gap-3">
                   {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
                   <div className="text-sm">
@@ -485,16 +460,55 @@ export default function Home() {
                 <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
-            {selectedSprint && (
-              <div className="mt-2 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                <span>{new Date(selectedSprint.startDate).toLocaleDateString()} - {new Date(selectedSprint.endDate).toLocaleDateString()}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${selectedSprint.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : selectedSprint.status === "completed" ? "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300" : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"}`}>
-                  {selectedSprint.status === "active" ? "Actief" : selectedSprint.status === "completed" ? "Afgerond" : "Gepland"}
-                </span>
-              </div>
-            )}
           </div>
         </header>
+
+        {/* Navigation Tabs */}
+        <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="mx-auto max-w-7xl px-4">
+            <nav className="flex space-x-8 overflow-x-auto">
+              {/* Sprints */}
+              {sprints.map((sprint) => {
+                const today = new Date();
+                const startDate = new Date(sprint.startDate);
+                const endDate = new Date(sprint.endDate);
+                const isActive = today >= startDate && today <= endDate;
+                const isSelected = selectedSprintId === sprint.id && activeTab === "board";
+                return (
+                  <button
+                    key={sprint.id}
+                    onClick={() => { setSelectedSprintId(sprint.id); setActiveTab("board"); }}
+                    className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium ${isSelected ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}
+                  >
+                    {sprint.name}
+                    {isActive && <span className="ml-1 text-xs text-green-600 dark:text-green-400">●</span>}
+                  </button>
+                );
+              })}
+              
+              {/* Divider */}
+              <div className="border-l border-gray-300 dark:border-gray-600 my-2" />
+              
+              {/* Backlog */}
+              {teams[0]?.class?.id && (
+                <Link
+                  href={`/classes/${teams[0].class.id}/backlog`}
+                  className="whitespace-nowrap border-b-2 border-transparent px-1 py-4 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"
+                >
+                  📋 Backlog
+                </Link>
+              )}
+              
+              {/* Retrospective */}
+              <button
+                onClick={() => setActiveTab("retro")}
+                className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium ${activeTab === "retro" ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}
+              >
+                Retrospective
+              </button>
+            </nav>
+          </div>
+        </div>
 
         {/* Repository Section */}
         <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -542,26 +556,22 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <div className="mx-auto max-w-7xl px-4">
-            <nav className="flex space-x-8">
-              <button onClick={() => setActiveTab("board")} className={`border-b-2 px-1 py-4 text-sm font-medium ${activeTab === "board" ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}>
-                Sprint Board
-              </button>
-              <button onClick={() => setActiveTab("standup")} className={`border-b-2 px-1 py-4 text-sm font-medium ${activeTab === "standup" ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}>
-                Daily Stand-ups
-              </button>
-              <button onClick={() => setActiveTab("retro")} className={`border-b-2 px-1 py-4 text-sm font-medium ${activeTab === "retro" ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}>
-                Retrospective
-              </button>
-            </nav>
-          </div>
-        </div>
-
         {/* Content */}
         <main className="mx-auto max-w-7xl px-4 py-8">
-          {activeTab === "board" && (
+          <div className="flex gap-6">
+            {/* Left Sidebar - Daily Stand-up Button */}
+            <div className="w-48 shrink-0">
+              <button
+                onClick={() => setActiveTab("standup")}
+                className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "standup" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+              >
+                📝 Daily Stand-up
+              </button>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1">
+              {activeTab === "board" && (
             <div className="grid gap-4 md:grid-cols-3">
               {/* To Do */}
               <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
@@ -715,6 +725,30 @@ export default function Home() {
               </div>
             </div>
           )}
+            </div>
+          </div>
+
+          {/* Team Members Section */}
+          <div className="mt-8 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Teamleden</h3>
+            <div className="flex flex-wrap gap-4">
+              {teams[0]?.members.map((member, idx) => (
+                <div key={idx} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+                  {member.user.image ? (
+                    <Image src={member.user.image} alt={member.user.name || "Member"} width={40} height={40} className="rounded-full" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300 text-sm font-medium dark:bg-gray-600">
+                      {member.user.name?.charAt(0) || "?"}
+                    </div>
+                  )}
+                  <span className="font-medium text-gray-900 dark:text-white">{member.user.name || "Onbekend"}</span>
+                </div>
+              ))}
+              {(!teams[0]?.members || teams[0].members.length === 0) && (
+                <p className="text-gray-500 dark:text-gray-400">Geen teamleden gevonden</p>
+              )}
+            </div>
+          </div>
         </main>
       </div>
     );
