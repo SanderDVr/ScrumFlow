@@ -52,6 +52,7 @@ model User {
   teamMembers   TeamMember[]
   class         Class?    @relation("ClassStudents", fields: [classId], references: [id], onDelete: SetNull)
   classRequests ClassRequest[]
+  standups      Standup[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -186,6 +187,7 @@ model Standup {
   updatedAt   DateTime  @updatedAt
   
   sprint      Sprint    @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@unique([sprintId, userId, date])
 }

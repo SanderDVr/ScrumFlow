@@ -72,6 +72,11 @@ type Standup = {
   today: string;
   blockers: string | null;
   userId: string;
+  user: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
 };
 
 type Retrospective = {
@@ -80,6 +85,13 @@ type Retrospective = {
   whatCanImprove: string;
   actionItems: string | null;
   userId: string;
+};
+
+type ClosedIssue = {
+  issueNumber: number;
+  title: string;
+  closedAt: string;
+  htmlUrl: string;
 };
 
 export default function Home() {
@@ -111,6 +123,9 @@ export default function Home() {
   const [retroActions, setRetroActions] = useState("");
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
+  const [closedIssuesYesterday, setClosedIssuesYesterday] = useState<ClosedIssue[]>([]);
+  const [loadingClosedIssues, setLoadingClosedIssues] = useState(false);
+  const [selectedTodayIssues, setSelectedTodayIssues] = useState<string[]>([]);
 
   useEffect(() => {
     if (session) {
@@ -217,30 +232,151 @@ export default function Home() {
     }
   };
 
+  const fetchClosedIssuesYesterday = async () => {
+    if (!selectedSprintId) return;
+    setLoadingClosedIssues(true);
+    try {
+      console.log('Fetching closed issues for sprint:', selectedSprintId);
+      const response = await fetch(`/api/sprints/${selectedSprintId}/closed-issues`);
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Closed issues response:', data);
+      if (response.ok) {
+        setClosedIssuesYesterday(data.closedIssues || []);
+        
+        // Auto-fill the "yesterday" field if there are closed issues
+        if (data.closedIssues && data.closedIssues.length > 0) {
+          const issuesList = data.closedIssues
+            .map((issue: ClosedIssue) => `- Issue #${issue.issueNumber}: ${issue.title}`)
+            .join('\n');
+          setStandupYesterday(`Gesloten issues:\n${issuesList}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching closed issues:", error);
+    } finally {
+      setLoadingClosedIssues(false);
+    }
+  };
+
+  const hasStandupToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const sessionUserId = session?.user?.id;
+    
+    const result = standups.some(s => {
+      const standupDate = new Date(s.date);
+      standupDate.setHours(0, 0, 0, 0);
+      const isToday = standupDate.getTime() === today.getTime();
+      // Check both s.userId and s.user.id in case one is missing
+      const isMyStandup = s.userId === sessionUserId || s.user?.id === sessionUserId;
+      return isToday && isMyStandup;
+    });
+    
+    console.log('hasStandupToday check:', {
+      today: today.toISOString(),
+      sessionUserId,
+      standups: standups.map(s => ({ 
+        date: s.date, 
+        standupDate: new Date(s.date).toISOString(),
+        userId: s.userId, 
+        userIdFromUser: s.user?.id,
+        userName: s.user?.name 
+      })),
+      result
+    });
+    
+    return result;
+  };
+
+  const handleStandupTabClick = () => {
+    setActiveTab("standup");
+    if (!hasStandupToday()) {
+      setShowStandupForm(true);
+      setSelectedTodayIssues([]);
+      fetchClosedIssuesYesterday();
+    } else {
+      setShowStandupForm(false);
+    }
+  };
+
+  const toggleTodayIssue = (issueId: string) => {
+    setSelectedTodayIssues(prev => 
+      prev.includes(issueId) 
+        ? prev.filter(id => id !== issueId)
+        : [...prev, issueId]
+    );
+  };
+
   const submitStandup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSprintId) return;
+    if (!selectedSprintId) {
+      console.error("No sprint selected");
+      return;
+    }
+
+    // Build yesterday text from closed issues or textarea
+    let yesterdayText = standupYesterday;
+    if (closedIssuesYesterday.length > 0) {
+      yesterdayText = closedIssuesYesterday
+        .map((issue) => `- Issue #${issue.issueNumber}: ${issue.title}`)
+        .join('\n');
+    }
+
+    // Build today text from selected issues or textarea
+    let todayText = standupToday;
+    if (selectedTodayIssues.length > 0) {
+      const todoIssues = issues.filter(i => i.status === "todo");
+      todayText = selectedTodayIssues
+        .map(issueId => {
+          const issue = todoIssues.find(i => i.id === issueId);
+          return issue ? `- Issue #${issue.issueNumber}: ${issue.title}` : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    // Validate that we have content
+    if (!yesterdayText.trim()) {
+      alert("Vul in wat je gisteren hebt gedaan");
+      return;
+    }
+    if (!todayText.trim()) {
+      alert("Selecteer of vul in wat je vandaag gaat doen");
+      return;
+    }
+
+    console.log("Submitting standup:", { yesterdayText, todayText, standupBlockers });
 
     try {
       const response = await fetch(`/api/sprints/${selectedSprintId}/standups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          yesterday: standupYesterday,
-          today: standupToday,
+          yesterday: yesterdayText,
+          today: todayText,
           blockers: standupBlockers || null,
         }),
       });
+
+      const data = await response.json();
+      console.log("Response:", response.status, data);
 
       if (response.ok) {
         setShowStandupForm(false);
         setStandupYesterday("");
         setStandupToday("");
         setStandupBlockers("");
+        setClosedIssuesYesterday([]);
+        setSelectedTodayIssues([]);
         fetchSprintData(selectedSprintId);
+      } else {
+        alert("Fout: " + (data.error || "Kon stand-up niet opslaan"));
       }
     } catch (error) {
       console.error("Error submitting standup:", error);
+      alert("Er is een fout opgetreden bij het opslaan van de stand-up");
     }
   };
 
@@ -586,7 +722,7 @@ export default function Home() {
                   {isActiveOrFinished && (
                     <>
                       <button
-                        onClick={() => setActiveTab("standup")}
+                        onClick={handleStandupTabClick}
                         className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "standup" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
                       >
                         📝 Daily Stand-up
@@ -649,54 +785,160 @@ export default function Home() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Daily Stand-ups</h2>
-                <button onClick={() => setShowStandupForm(!showStandupForm)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-                  {showStandupForm ? "Annuleren" : "+ Stand-up Toevoegen"}
-                </button>
+                {hasStandupToday() && (
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-sm text-green-800 dark:bg-green-900 dark:text-green-300">
+                    ✓ Vandaag ingevuld
+                  </span>
+                )}
               </div>
 
-              {showStandupForm && (
+              {showStandupForm && !hasStandupToday() && (
                 <form onSubmit={submitStandup} className="mb-6 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                  <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Nieuwe Stand-up</h3>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nieuwe Stand-up</h3>
+                    <button type="button" onClick={() => setShowStandupForm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      ✕
+                    </button>
+                  </div>
+
                   <div className="space-y-4">
+                    {/* Gisteren gedaan */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat heb je gisteren gedaan? *</label>
-                      <textarea value={standupYesterday} onChange={(e) => setStandupYesterday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Gisteren gedaan:</label>
+                      {loadingClosedIssues ? (
+                        <div className="mt-1 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+                          <p className="text-sm text-blue-700 dark:text-blue-300">
+                            Gesloten GitHub issues worden opgehaald...
+                          </p>
+                        </div>
+                      ) : closedIssuesYesterday.length > 0 ? (
+                        <div className="mt-1 rounded-lg bg-green-50 p-3 dark:bg-green-900/20">
+                          <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
+                            {closedIssuesYesterday.map((issue) => (
+                              <li key={issue.issueNumber} className="flex items-center gap-2">
+                                <span className="text-green-500">✓</span>
+                                <a href={issue.htmlUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                  #{issue.issueNumber}: {issue.title}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <textarea value={standupYesterday} onChange={(e) => setStandupYesterday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required placeholder="Geen gesloten issues gevonden. Beschrijf wat je gisteren hebt gedaan..." />
+                      )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat ga je vandaag doen? *</label>
-                      <textarea value={standupToday} onChange={(e) => setStandupToday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat ga je vandaag doen?</label>
+                      {todoIssues.length > 0 ? (
+                        <div className="mt-1 space-y-2">
+                          <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+                            {todoIssues.map((issue) => (
+                              <label
+                                key={issue.id}
+                                className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                                  selectedTodayIssues.includes(issue.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTodayIssues.includes(issue.id)}
+                                  onChange={() => toggleTodayIssue(issue.id)}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    #{issue.issueNumber}: {issue.title}
+                                  </span>
+                                </div>
+                                <a
+                                  href={issue.htmlUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                >
+                                  GitHub →
+                                </a>
+                              </label>
+                            ))}
+                          </div>
+                          {selectedTodayIssues.length > 0 && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              {selectedTodayIssues.length} issue(s) geselecteerd
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <textarea value={standupToday} onChange={(e) => setStandupToday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required placeholder="Geen To Do issues in deze sprint. Beschrijf handmatig wat je vandaag gaat doen..." />
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Blokkades (optioneel)</label>
                       <textarea value={standupBlockers} onChange={(e) => setStandupBlockers(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={2} />
                     </div>
-                    <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Stand-up Opslaan</button>
+                    <button 
+                      type="submit" 
+                      disabled={todoIssues.length > 0 && selectedTodayIssues.length === 0}
+                      className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Stand-up Opslaan
+                    </button>
+                    {todoIssues.length > 0 && selectedTodayIssues.length === 0 && (
+                      <p className="text-xs text-red-500 text-center">Selecteer minstens 1 issue voor vandaag</p>
+                    )}
                   </div>
                 </form>
               )}
 
               <div className="space-y-4">
-                {standups.map((standup) => (
-                  <div key={standup.id} className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                    <div className="mb-4 text-sm text-gray-500 dark:text-gray-400">{new Date(standup.date).toLocaleDateString()}</div>
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">Gisteren</h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{standup.yesterday}</p>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">Vandaag</h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{standup.today}</p>
-                      </div>
-                      {standup.blockers && (
-                        <div>
-                          <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
-                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{standup.blockers}</p>
+                {standups.map((standup) => {
+                  const isMyStandup = standup.userId === session.user?.id;
+                  return (
+                    <div key={standup.id} className={`rounded-lg bg-white p-6 shadow dark:bg-gray-800 ${isMyStandup ? 'ring-2 ring-blue-500' : ''}`}>
+                      <div className="mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {standup.user.image ? (
+                            <Image src={standup.user.image} alt={standup.user.name || "User"} width={32} height={32} className="rounded-full" />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-medium dark:bg-gray-600">
+                              {standup.user.name?.charAt(0) || "?"}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {standup.user.name || "Onbekend"}
+                            </span>
+                            {isMyStandup && (
+                              <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                Jij
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(standup.date).toLocaleDateString('nl-NL')}
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white">Gisteren</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.yesterday}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white">Vandaag</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.today}</p>
+                        </div>
+                        {standup.blockers && (
+                          <div>
+                            <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {standups.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400">Nog geen stand-ups</p>}
               </div>
             </div>
