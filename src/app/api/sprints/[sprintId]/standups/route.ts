@@ -54,6 +54,15 @@ export async function GET(
     const standups = await prisma.standup.findMany({
       where: { sprintId },
       orderBy: { date: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json(standups);

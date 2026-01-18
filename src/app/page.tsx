@@ -72,6 +72,11 @@ type Standup = {
   today: string;
   blockers: string | null;
   userId: string;
+  user: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
 };
 
 type Retrospective = {
@@ -254,10 +259,46 @@ export default function Home() {
     }
   };
 
-  const handleOpenStandupForm = () => {
-    setShowStandupForm(true);
-    setSelectedTodayIssues([]);
-    fetchClosedIssuesYesterday();
+  const hasStandupToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const sessionUserId = session?.user?.id;
+    
+    const result = standups.some(s => {
+      const standupDate = new Date(s.date);
+      standupDate.setHours(0, 0, 0, 0);
+      const isToday = standupDate.getTime() === today.getTime();
+      // Check both s.userId and s.user.id in case one is missing
+      const isMyStandup = s.userId === sessionUserId || s.user?.id === sessionUserId;
+      return isToday && isMyStandup;
+    });
+    
+    console.log('hasStandupToday check:', {
+      today: today.toISOString(),
+      sessionUserId,
+      standups: standups.map(s => ({ 
+        date: s.date, 
+        standupDate: new Date(s.date).toISOString(),
+        userId: s.userId, 
+        userIdFromUser: s.user?.id,
+        userName: s.user?.name 
+      })),
+      result
+    });
+    
+    return result;
+  };
+
+  const handleStandupTabClick = () => {
+    setActiveTab("standup");
+    if (!hasStandupToday()) {
+      setShowStandupForm(true);
+      setSelectedTodayIssues([]);
+      fetchClosedIssuesYesterday();
+    } else {
+      setShowStandupForm(false);
+    }
   };
 
   const toggleTodayIssue = (issueId: string) => {
@@ -270,7 +311,10 @@ export default function Home() {
 
   const submitStandup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSprintId) return;
+    if (!selectedSprintId) {
+      console.error("No sprint selected");
+      return;
+    }
 
     // Build yesterday text from closed issues or textarea
     let yesterdayText = standupYesterday;
@@ -293,6 +337,18 @@ export default function Home() {
         .join('\n');
     }
 
+    // Validate that we have content
+    if (!yesterdayText.trim()) {
+      alert("Vul in wat je gisteren hebt gedaan");
+      return;
+    }
+    if (!todayText.trim()) {
+      alert("Selecteer of vul in wat je vandaag gaat doen");
+      return;
+    }
+
+    console.log("Submitting standup:", { yesterdayText, todayText, standupBlockers });
+
     try {
       const response = await fetch(`/api/sprints/${selectedSprintId}/standups`, {
         method: "POST",
@@ -304,6 +360,9 @@ export default function Home() {
         }),
       });
 
+      const data = await response.json();
+      console.log("Response:", response.status, data);
+
       if (response.ok) {
         setShowStandupForm(false);
         setStandupYesterday("");
@@ -312,9 +371,12 @@ export default function Home() {
         setClosedIssuesYesterday([]);
         setSelectedTodayIssues([]);
         fetchSprintData(selectedSprintId);
+      } else {
+        alert("Fout: " + (data.error || "Kon stand-up niet opslaan"));
       }
     } catch (error) {
       console.error("Error submitting standup:", error);
+      alert("Er is een fout opgetreden bij het opslaan van de stand-up");
     }
   };
 
@@ -660,7 +722,7 @@ export default function Home() {
                   {isActiveOrFinished && (
                     <>
                       <button
-                        onClick={() => setActiveTab("standup")}
+                        onClick={handleStandupTabClick}
                         className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "standup" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
                       >
                         📝 Daily Stand-up
@@ -723,14 +785,21 @@ export default function Home() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Daily Stand-ups</h2>
-                <button onClick={() => { if (showStandupForm) { setShowStandupForm(false); } else { handleOpenStandupForm(); } }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-                  {showStandupForm ? "Annuleren" : "+ Stand-up Toevoegen"}
-                </button>
+                {hasStandupToday() && (
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-sm text-green-800 dark:bg-green-900 dark:text-green-300">
+                    ✓ Vandaag ingevuld
+                  </span>
+                )}
               </div>
 
-              {showStandupForm && (
+              {showStandupForm && !hasStandupToday() && (
                 <form onSubmit={submitStandup} className="mb-6 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                  <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Nieuwe Stand-up</h3>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nieuwe Stand-up</h3>
+                    <button type="button" onClick={() => setShowStandupForm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      ✕
+                    </button>
+                  </div>
 
                   <div className="space-y-4">
                     {/* Gisteren gedaan */}
@@ -823,27 +892,53 @@ export default function Home() {
               )}
 
               <div className="space-y-4">
-                {standups.map((standup) => (
-                  <div key={standup.id} className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                    <div className="mb-4 text-sm text-gray-500 dark:text-gray-400">{new Date(standup.date).toLocaleDateString()}</div>
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">Gisteren</h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{standup.yesterday}</p>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">Vandaag</h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{standup.today}</p>
-                      </div>
-                      {standup.blockers && (
-                        <div>
-                          <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
-                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{standup.blockers}</p>
+                {standups.map((standup) => {
+                  const isMyStandup = standup.userId === session.user?.id;
+                  return (
+                    <div key={standup.id} className={`rounded-lg bg-white p-6 shadow dark:bg-gray-800 ${isMyStandup ? 'ring-2 ring-blue-500' : ''}`}>
+                      <div className="mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {standup.user.image ? (
+                            <Image src={standup.user.image} alt={standup.user.name || "User"} width={32} height={32} className="rounded-full" />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-medium dark:bg-gray-600">
+                              {standup.user.name?.charAt(0) || "?"}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {standup.user.name || "Onbekend"}
+                            </span>
+                            {isMyStandup && (
+                              <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                Jij
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(standup.date).toLocaleDateString('nl-NL')}
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white">Gisteren</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.yesterday}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white">Vandaag</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.today}</p>
+                        </div>
+                        {standup.blockers && (
+                          <div>
+                            <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {standups.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400">Nog geen stand-ups</p>}
               </div>
             </div>
