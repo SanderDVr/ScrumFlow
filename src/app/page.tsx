@@ -85,6 +85,11 @@ type Retrospective = {
   whatCanImprove: string;
   actionItems: string | null;
   userId: string;
+  user: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
 };
 
 type ClosedIssue = {
@@ -977,26 +982,48 @@ export default function Home() {
               )}
 
               <div className="space-y-4">
-                {retrospectives.map((retro) => (
-                  <div key={retro.id} className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-medium text-green-600 dark:text-green-400">Wat ging goed</h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.whatWentWell}</p>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-orange-600 dark:text-orange-400">Wat kan beter</h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.whatCanImprove}</p>
-                      </div>
-                      {retro.actionItems && (
+                {retrospectives.map((retro) => {
+                  const isMyRetro = retro.userId === session.user?.id;
+                  return (
+                    <div key={retro.id} className={`rounded-lg bg-white p-6 shadow dark:bg-gray-800 ${isMyRetro ? 'ring-2 ring-blue-500' : ''}`}>
+                      <div className="mb-4 flex items-center gap-3">
+                        {retro.user.image ? (
+                          <Image src={retro.user.image} alt={retro.user.name || "User"} width={32} height={32} className="rounded-full" />
+                        ) : (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-medium dark:bg-gray-600">
+                            {retro.user.name?.charAt(0) || "?"}
+                          </div>
+                        )}
                         <div>
-                          <h4 className="font-medium text-blue-600 dark:text-blue-400">Actiepunten</h4>
-                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.actionItems}</p>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {retro.user.name || "Onbekend"}
+                          </span>
+                          {isMyRetro && (
+                            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                              Jij
+                            </span>
+                          )}
                         </div>
-                      )}
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-medium text-green-600 dark:text-green-400">Wat ging goed</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.whatWentWell}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-orange-600 dark:text-orange-400">Wat kan beter</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.whatCanImprove}</p>
+                        </div>
+                        {retro.actionItems && (
+                          <div>
+                            <h4 className="font-medium text-blue-600 dark:text-blue-400">Actiepunten</h4>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.actionItems}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {retrospectives.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400">Nog geen retrospectives</p>}
               </div>
             </div>

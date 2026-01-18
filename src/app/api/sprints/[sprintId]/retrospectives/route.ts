@@ -54,6 +54,15 @@ export async function GET(
     const retrospectives = await prisma.retrospective.findMany({
       where: { sprintId },
       orderBy: { createdAt: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json(retrospectives);
@@ -111,6 +120,16 @@ export async function POST(
       return NextResponse.json(
         { error: "Alleen teamleden kunnen retrospectives toevoegen" },
         { status: 403 }
+      );
+    }
+
+    // Check if sprint has started (retrospectives only for active or finished sprints)
+    const today = new Date();
+    const sprintStart = new Date(sprint.startDate);
+    if (today < sprintStart) {
+      return NextResponse.json(
+        { error: "Je kunt pas een retrospective invullen als de sprint is gestart" },
+        { status: 400 }
       );
     }
 
