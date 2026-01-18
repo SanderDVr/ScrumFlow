@@ -82,6 +82,13 @@ type Retrospective = {
   userId: string;
 };
 
+type ClosedIssue = {
+  issueNumber: number;
+  title: string;
+  closedAt: string;
+  htmlUrl: string;
+};
+
 export default function Home() {
   const { data: session, status } = useSession();
   const [teams, setTeams] = useState<Team[]>([]);
@@ -111,6 +118,8 @@ export default function Home() {
   const [retroActions, setRetroActions] = useState("");
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
+  const [closedIssuesYesterday, setClosedIssuesYesterday] = useState<ClosedIssue[]>([]);
+  const [loadingClosedIssues, setLoadingClosedIssues] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -217,16 +226,56 @@ export default function Home() {
     }
   };
 
+  const fetchClosedIssuesYesterday = async () => {
+    if (!selectedSprintId) return;
+    setLoadingClosedIssues(true);
+    try {
+      console.log('Fetching closed issues for sprint:', selectedSprintId);
+      const response = await fetch(`/api/sprints/${selectedSprintId}/closed-issues`);
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Closed issues response:', data);
+      if (response.ok) {
+        setClosedIssuesYesterday(data.closedIssues || []);
+        
+        // Auto-fill the "yesterday" field if there are closed issues
+        if (data.closedIssues && data.closedIssues.length > 0) {
+          const issuesList = data.closedIssues
+            .map((issue: ClosedIssue) => `- Issue #${issue.issueNumber}: ${issue.title}`)
+            .join('\n');
+          setStandupYesterday(`Gesloten issues:\n${issuesList}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching closed issues:", error);
+    } finally {
+      setLoadingClosedIssues(false);
+    }
+  };
+
+  const handleOpenStandupForm = () => {
+    setShowStandupForm(true);
+    fetchClosedIssuesYesterday();
+  };
+
   const submitStandup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSprintId) return;
+
+    // Build yesterday text from closed issues or textarea
+    let yesterdayText = standupYesterday;
+    if (closedIssuesYesterday.length > 0) {
+      yesterdayText = closedIssuesYesterday
+        .map((issue) => `- Issue #${issue.issueNumber}: ${issue.title}`)
+        .join('\n');
+    }
 
     try {
       const response = await fetch(`/api/sprints/${selectedSprintId}/standups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          yesterday: standupYesterday,
+          yesterday: yesterdayText,
           today: standupToday,
           blockers: standupBlockers || null,
         }),
@@ -237,6 +286,7 @@ export default function Home() {
         setStandupYesterday("");
         setStandupToday("");
         setStandupBlockers("");
+        setClosedIssuesYesterday([]);
         fetchSprintData(selectedSprintId);
       }
     } catch (error) {
@@ -649,7 +699,7 @@ export default function Home() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Daily Stand-ups</h2>
-                <button onClick={() => setShowStandupForm(!showStandupForm)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
+                <button onClick={() => { if (showStandupForm) { setShowStandupForm(false); } else { handleOpenStandupForm(); } }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
                   {showStandupForm ? "Annuleren" : "+ Stand-up Toevoegen"}
                 </button>
               </div>
@@ -657,13 +707,36 @@ export default function Home() {
               {showStandupForm && (
                 <form onSubmit={submitStandup} className="mb-6 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
                   <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Nieuwe Stand-up</h3>
+
                   <div className="space-y-4">
+                    {/* Gisteren gedaan */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat heb je gisteren gedaan? *</label>
-                      <textarea value={standupYesterday} onChange={(e) => setStandupYesterday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Gisteren gedaan:</label>
+                      {loadingClosedIssues ? (
+                        <div className="mt-1 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+                          <p className="text-sm text-blue-700 dark:text-blue-300">
+                            Gesloten GitHub issues worden opgehaald...
+                          </p>
+                        </div>
+                      ) : closedIssuesYesterday.length > 0 ? (
+                        <div className="mt-1 rounded-lg bg-green-50 p-3 dark:bg-green-900/20">
+                          <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
+                            {closedIssuesYesterday.map((issue) => (
+                              <li key={issue.issueNumber} className="flex items-center gap-2">
+                                <span className="text-green-500">✓</span>
+                                <a href={issue.htmlUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                  #{issue.issueNumber}: {issue.title}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <textarea value={standupYesterday} onChange={(e) => setStandupYesterday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required placeholder="Geen gesloten issues gevonden. Beschrijf wat je gisteren hebt gedaan..." />
+                      )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat ga je vandaag doen? *</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat ga je vandaag doen?</label>
                       <textarea value={standupToday} onChange={(e) => setStandupToday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required />
                     </div>
                     <div>

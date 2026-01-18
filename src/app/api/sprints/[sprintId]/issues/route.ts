@@ -15,6 +15,10 @@ export async function GET(
   }
 
   const { sprintId } = await context.params;
+  
+  // Check for force sync parameter
+  const url = new URL(request.url);
+  const forceSync = url.searchParams.get('sync') === 'true';
 
   try {
     const sprint = await prisma.sprint.findUnique({
@@ -40,6 +44,9 @@ export async function GET(
     if (!sprint) {
       return NextResponse.json({ error: "Sprint not found" }, { status: 404 });
     }
+
+    let syncError: string | null = null;
+    let syncedCount = 0;
 
     // Als er repository info is, haal issues op van GitHub
     if (sprint.project.repositoryOwner && sprint.project.repositoryName) {
@@ -88,14 +95,12 @@ export async function GET(
 
       if (githubResponse.ok) {
         const githubIssues = await githubResponse.json();
-        console.log(`Fetched ${githubIssues.length} issues from GitHub`);
+        syncedCount = githubIssues.length;
 
         // Sync issues met database
         for (const issue of githubIssues) {
           // Skip pull requests
           if (issue.pull_request) continue;
-
-          console.log(`Syncing issue #${issue.number}: ${issue.title}`);
           
           // Determine status: closed issues automatically go to 'done'
           const statusForIssue = issue.state === 'closed' ? 'done' : undefined;
@@ -134,9 +139,9 @@ export async function GET(
             },
           });
         }
-        console.log("Sync completed");
       } else {
-        console.error(`GitHub API error: ${githubResponse.status} - ${await githubResponse.text()}`);
+        const errorText = await githubResponse.text();
+        syncError = `GitHub API error: ${githubResponse.status} - ${errorText}`;
       }
     }
 
@@ -158,6 +163,14 @@ export async function GET(
       sprintIssues,
       backlogIssues,
       allIssues,
+      syncInfo: {
+        synced: syncedCount > 0,
+        count: syncedCount,
+        error: syncError,
+        repository: sprint.project.repositoryOwner && sprint.project.repositoryName 
+          ? `${sprint.project.repositoryOwner}/${sprint.project.repositoryName}`
+          : null,
+      },
     });
   } catch (error) {
     console.error("Error fetching issues:", error);
