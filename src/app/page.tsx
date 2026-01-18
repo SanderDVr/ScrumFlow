@@ -117,6 +117,10 @@ export default function Home() {
   const [retrospectives, setRetrospectives] = useState<Retrospective[]>([]);
   const [activeTab, setActiveTab] = useState<"board" | "standup" | "retro">("board");
   
+  // Teacher team view state
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
+  
   // Forms
   const [showStandupForm, setShowStandupForm] = useState(false);
   const [standupYesterday, setStandupYesterday] = useState("");
@@ -138,9 +142,9 @@ export default function Home() {
     }
   }, [session]);
 
-  // When sprints are loaded, select the active one
+  // When sprints are loaded, select the active one (for students)
   useEffect(() => {
-    if (sprints.length > 0 && !selectedSprintId) {
+    if (session?.user?.role === "student" && sprints.length > 0 && !selectedSprintId) {
       const today = new Date();
       const activeSprint = sprints.find(sprint => {
         const startDate = new Date(sprint.startDate);
@@ -149,14 +153,33 @@ export default function Home() {
       });
       setSelectedSprintId(activeSprint?.id || sprints[0].id);
     }
-  }, [sprints, selectedSprintId]);
+  }, [sprints, selectedSprintId, session]);
+
+  // For teachers: when team is selected, filter sprints and select active one
+  useEffect(() => {
+    if (session?.user?.role === "teacher" && selectedTeamId && sprints.length > 0) {
+      const teamSprints = sprints.filter(s => s.project.team?.id === selectedTeamId);
+      if (teamSprints.length > 0) {
+        const today = new Date();
+        const activeSprint = teamSprints.find(sprint => {
+          const startDate = new Date(sprint.startDate);
+          const endDate = new Date(sprint.endDate);
+          return today >= startDate && today <= endDate;
+        });
+        setSelectedSprintId(activeSprint?.id || teamSprints[0].id);
+        setActiveTab("board");
+      } else {
+        setSelectedSprintId(null);
+      }
+    }
+  }, [selectedTeamId, sprints, session]);
 
   // Fetch sprint data when selected sprint changes
   useEffect(() => {
-    if (selectedSprintId && session?.user?.role === "student") {
+    if (selectedSprintId) {
       fetchSprintData(selectedSprintId);
     }
-  }, [selectedSprintId, session]);
+  }, [selectedSprintId]);
 
   const fetchData = async () => {
     try {
@@ -1057,7 +1080,326 @@ export default function Home() {
     );
   }
 
-  // TEACHER VIEW - Dashboard
+  // TEACHER VIEW - Dashboard or Team View
+  const isTeacher = session.user?.role === "teacher";
+  const teamSprints = selectedTeamId ? sprints.filter(s => s.project.team?.id === selectedTeamId) : [];
+  const selectedSprint = sprints.find(s => s.id === selectedSprintId);
+  const todoIssues = issues.filter((i) => i.status === "todo");
+  const inProgressIssues = issues.filter((i) => i.status === "in_progress");
+  const doneIssues = issues.filter((i) => i.status === "done");
+
+  const selectTeamForViewing = (team: Team) => {
+    setSelectedTeamId(team.id);
+    setViewingTeam(team);
+    setSelectedSprintId(null);
+    setActiveTab("board");
+  };
+
+  const backToDashboard = () => {
+    setSelectedTeamId(null);
+    setViewingTeam(null);
+    setSelectedSprintId(null);
+    setIssues([]);
+    setStandups([]);
+    setRetrospectives([]);
+  };
+
+  // If teacher has selected a team, show the team sprint view
+  if (isTeacher && selectedTeamId && viewingTeam) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        {/* Header */}
+        <header className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="mx-auto max-w-7xl px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button onClick={backToDashboard} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                  ← Terug
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
+                  <div className="text-sm">
+                    <div className="font-medium text-gray-900 dark:text-white">{session.user?.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Docent</div>
+                  </div>
+                </div>
+                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Team Info Bar */}
+        <div className="border-b border-gray-200 bg-indigo-50 dark:border-gray-700 dark:bg-indigo-900/20">
+          <div className="mx-auto max-w-7xl px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingTeam.name}</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{viewingTeam.class.name}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Teamleden:</span>
+                <div className="flex -space-x-2">
+                  {viewingTeam.members.slice(0, 5).map((member, i) => (
+                    <div key={i} className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800">
+                      {member.user.image ? (
+                        <Image src={member.user.image} alt={member.user.name || "Member"} width={32} height={32} />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">
+                          {member.user.name?.charAt(0) || "?"}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {viewingTeam.members.length > 5 && (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs dark:border-gray-800 dark:bg-gray-700">
+                      +{viewingTeam.members.length - 5}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="mx-auto max-w-7xl px-4">
+            <nav className="flex space-x-8 overflow-x-auto">
+              {teamSprints.map((sprint) => {
+                const today = new Date();
+                const startDate = new Date(sprint.startDate);
+                const endDate = new Date(sprint.endDate);
+                const isActive = today >= startDate && today <= endDate;
+                const isSelected = selectedSprintId === sprint.id && activeTab === "board";
+                return (
+                  <button
+                    key={sprint.id}
+                    onClick={() => { setSelectedSprintId(sprint.id); setActiveTab("board"); }}
+                    className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium ${isSelected ? "border-blue-500 text-blue-600 dark:text-blue-400" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400"}`}
+                  >
+                    {sprint.name}
+                    {isActive && <span className="ml-1 text-xs text-green-600 dark:text-green-400">●</span>}
+                  </button>
+                );
+              })}
+              {teamSprints.length === 0 && (
+                <span className="py-4 text-sm text-gray-500 dark:text-gray-400">Geen sprints voor dit team</span>
+              )}
+            </nav>
+          </div>
+        </div>
+
+        {/* Repository Section */}
+        {selectedSprint?.project.repositoryUrl && (
+          <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <div className="mx-auto max-w-7xl px-4 py-3">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Repository:</span>
+                <a href={selectedSprint.project.repositoryUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                  {selectedSprint.project.repositoryOwner}/{selectedSprint.project.repositoryName}
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
+        <main className="mx-auto max-w-7xl px-4 py-8">
+          {teamSprints.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center dark:border-gray-600 dark:bg-gray-800/50">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Geen sprints</h3>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">Dit team heeft nog geen sprints.</p>
+            </div>
+          ) : (
+            <div className="flex gap-6">
+              {/* Left Sidebar */}
+              {(() => {
+                const today = new Date();
+                const sprintStart = selectedSprint ? new Date(selectedSprint.startDate) : null;
+                const sprintEnd = selectedSprint ? new Date(selectedSprint.endDate) : null;
+                const isActiveOrFinished = sprintStart && sprintEnd && today >= sprintStart;
+                
+                return (
+                  <div className="w-48 shrink-0 space-y-3">
+                    {selectedSprint && (
+                      <div className="rounded-lg bg-white p-3 shadow dark:bg-gray-800">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Sprint periode</div>
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {new Date(selectedSprint.startDate).toLocaleDateString('nl-NL')} - {new Date(selectedSprint.endDate).toLocaleDateString('nl-NL')}
+                        </div>
+                        {sprintStart && sprintEnd && (
+                          <div className="mt-1 text-xs">
+                            {today < sprintStart ? (
+                              <span className="text-blue-600 dark:text-blue-400">Gepland</span>
+                            ) : today > sprintEnd ? (
+                              <span className="text-gray-500 dark:text-gray-400">Afgerond</span>
+                            ) : (
+                              <span className="text-green-600 dark:text-green-400">Actief</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {isActiveOrFinished && (
+                      <>
+                        <button
+                          onClick={() => setActiveTab("standup")}
+                          className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "standup" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                        >
+                          📝 Daily Stand-ups
+                        </button>
+                        <button
+                          onClick={() => setActiveTab("retro")}
+                          className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors ${activeTab === "retro" ? "bg-blue-600 text-white" : "bg-white text-gray-700 shadow hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                        >
+                          🔄 Retrospectives
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Main Content */}
+              <div className="flex-1">
+                {activeTab === "board" && (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                      <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                        <span>To Do</span>
+                        <span className="rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700">{todoIssues.length}</span>
+                      </h3>
+                      <div className="space-y-3">
+                        {todoIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} readOnly={true} />)}
+                        {todoIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                      <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                        <span>Doing</span>
+                        <span className="rounded-full bg-blue-200 px-2 py-1 text-xs dark:bg-blue-700">{inProgressIssues.length}</span>
+                      </h3>
+                      <div className="space-y-3">
+                        {inProgressIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} readOnly={true} />)}
+                        {inProgressIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                      <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                        <span>Done</span>
+                        <span className="rounded-full bg-green-200 px-2 py-1 text-xs dark:bg-green-700">{doneIssues.length}</span>
+                      </h3>
+                      <div className="space-y-3">
+                        {doneIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} readOnly={true} />)}
+                        {doneIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "standup" && (
+                  <div>
+                    <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Daily Stand-ups</h2>
+                    <div className="space-y-4">
+                      {standups.map((standup) => (
+                        <div key={standup.id} className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+                          <div className="mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {standup.user.image ? (
+                                <Image src={standup.user.image} alt={standup.user.name || "User"} width={32} height={32} className="rounded-full" />
+                              ) : (
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-medium dark:bg-gray-600">
+                                  {standup.user.name?.charAt(0) || "?"}
+                                </div>
+                              )}
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {standup.user.name || "Onbekend"}
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {new Date(standup.date).toLocaleDateString('nl-NL')}
+                            </span>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <h4 className="font-medium text-gray-900 dark:text-white">Gisteren</h4>
+                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.yesterday}</p>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900 dark:text-white">Vandaag</h4>
+                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.today}</p>
+                            </div>
+                            {standup.blockers && (
+                              <div>
+                                <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {standups.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400">Nog geen stand-ups</p>}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "retro" && (
+                  <div>
+                    <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Retrospectives</h2>
+                    <div className="space-y-4">
+                      {retrospectives.map((retro) => (
+                        <div key={retro.id} className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+                          <div className="mb-4 flex items-center gap-3">
+                            {retro.user.image ? (
+                              <Image src={retro.user.image} alt={retro.user.name || "User"} width={32} height={32} className="rounded-full" />
+                            ) : (
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-medium dark:bg-gray-600">
+                                {retro.user.name?.charAt(0) || "?"}
+                              </div>
+                            )}
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {retro.user.name || "Onbekend"}
+                            </span>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <h4 className="font-medium text-green-600 dark:text-green-400">Wat ging goed</h4>
+                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.whatWentWell}</p>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-orange-600 dark:text-orange-400">Wat kan beter</h4>
+                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.whatCanImprove}</p>
+                            </div>
+                            {retro.actionItems && (
+                              <div>
+                                <h4 className="font-medium text-blue-600 dark:text-blue-400">Actiepunten</h4>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{retro.actionItems}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {retrospectives.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400">Nog geen retrospectives</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // TEACHER VIEW - Dashboard (no team selected)
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -1080,14 +1422,13 @@ export default function Home() {
       <main className="mx-auto max-w-7xl px-4 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Overzicht van je teams</p>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Klik op een team om de sprint board te bekijken</p>
         </div>
 
         {loading ? (
           <div className="text-center"><div className="text-gray-600 dark:text-gray-400">Laden...</div></div>
         ) : (
           <div className="space-y-8">
-            {/* Teams */}
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Teams</h3>
@@ -1107,7 +1448,11 @@ export default function Home() {
                         <h4 className="mb-3 text-lg font-medium text-gray-700 dark:text-gray-300">{className}</h4>
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                           {classTeams.map((team) => (
-                            <Link key={team.id} href={`/teams/${team.id}`} className="block rounded-lg bg-white p-6 shadow hover:shadow-lg dark:bg-gray-800">
+                            <button
+                              key={team.id}
+                              onClick={() => selectTeamForViewing(team)}
+                              className="block w-full text-left rounded-lg bg-white p-6 shadow hover:shadow-lg hover:ring-2 hover:ring-blue-500 transition-all dark:bg-gray-800"
+                            >
                               <h5 className="text-lg font-semibold text-gray-900 dark:text-white">{team.name}</h5>
                               {team.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{team.description}</p>}
                               <div className="mt-4 flex -space-x-2">
@@ -1118,7 +1463,7 @@ export default function Home() {
                                 ))}
                                 {team.members.length > 3 && <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs dark:border-gray-800 dark:bg-gray-700">+{team.members.length - 3}</div>}
                               </div>
-                            </Link>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -1134,7 +1479,7 @@ export default function Home() {
   );
 }
 
-function IssueCard({ issue, onMove }: { issue: GitHubIssue; onMove: (issueId: string, status: string) => void }) {
+function IssueCard({ issue, onMove, readOnly = false }: { issue: GitHubIssue; onMove: (issueId: string, status: string) => void; readOnly?: boolean }) {
   const labels = issue.labels ? JSON.parse(issue.labels) : [];
   const isClosed = issue.state === "closed" || issue.status === "done";
   
@@ -1158,7 +1503,7 @@ function IssueCard({ issue, onMove }: { issue: GitHubIssue; onMove: (issueId: st
           {issue.state}
         </span>
       </div>
-      {!isClosed && (
+      {!isClosed && !readOnly && (
         <div className="mt-3">
           <select value={issue.status} onChange={(e) => onMove(issue.id, e.target.value)} className="w-full text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
             <option value="todo">To Do</option>
