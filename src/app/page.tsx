@@ -120,6 +120,7 @@ export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [closedIssuesYesterday, setClosedIssuesYesterday] = useState<ClosedIssue[]>([]);
   const [loadingClosedIssues, setLoadingClosedIssues] = useState(false);
+  const [selectedTodayIssues, setSelectedTodayIssues] = useState<string[]>([]);
 
   useEffect(() => {
     if (session) {
@@ -255,7 +256,16 @@ export default function Home() {
 
   const handleOpenStandupForm = () => {
     setShowStandupForm(true);
+    setSelectedTodayIssues([]);
     fetchClosedIssuesYesterday();
+  };
+
+  const toggleTodayIssue = (issueId: string) => {
+    setSelectedTodayIssues(prev => 
+      prev.includes(issueId) 
+        ? prev.filter(id => id !== issueId)
+        : [...prev, issueId]
+    );
   };
 
   const submitStandup = async (e: React.FormEvent) => {
@@ -270,13 +280,26 @@ export default function Home() {
         .join('\n');
     }
 
+    // Build today text from selected issues or textarea
+    let todayText = standupToday;
+    if (selectedTodayIssues.length > 0) {
+      const todoIssues = issues.filter(i => i.status === "todo");
+      todayText = selectedTodayIssues
+        .map(issueId => {
+          const issue = todoIssues.find(i => i.id === issueId);
+          return issue ? `- Issue #${issue.issueNumber}: ${issue.title}` : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+
     try {
       const response = await fetch(`/api/sprints/${selectedSprintId}/standups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           yesterday: yesterdayText,
-          today: standupToday,
+          today: todayText,
           blockers: standupBlockers || null,
         }),
       });
@@ -287,6 +310,7 @@ export default function Home() {
         setStandupToday("");
         setStandupBlockers("");
         setClosedIssuesYesterday([]);
+        setSelectedTodayIssues([]);
         fetchSprintData(selectedSprintId);
       }
     } catch (error) {
@@ -737,13 +761,63 @@ export default function Home() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wat ga je vandaag doen?</label>
-                      <textarea value={standupToday} onChange={(e) => setStandupToday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required />
+                      {todoIssues.length > 0 ? (
+                        <div className="mt-1 space-y-2">
+                          <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+                            {todoIssues.map((issue) => (
+                              <label
+                                key={issue.id}
+                                className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                                  selectedTodayIssues.includes(issue.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTodayIssues.includes(issue.id)}
+                                  onChange={() => toggleTodayIssue(issue.id)}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    #{issue.issueNumber}: {issue.title}
+                                  </span>
+                                </div>
+                                <a
+                                  href={issue.htmlUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                >
+                                  GitHub →
+                                </a>
+                              </label>
+                            ))}
+                          </div>
+                          {selectedTodayIssues.length > 0 && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              {selectedTodayIssues.length} issue(s) geselecteerd
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <textarea value={standupToday} onChange={(e) => setStandupToday(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={3} required placeholder="Geen To Do issues in deze sprint. Beschrijf handmatig wat je vandaag gaat doen..." />
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Blokkades (optioneel)</label>
                       <textarea value={standupBlockers} onChange={(e) => setStandupBlockers(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={2} />
                     </div>
-                    <button type="submit" className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Stand-up Opslaan</button>
+                    <button 
+                      type="submit" 
+                      disabled={todoIssues.length > 0 && selectedTodayIssues.length === 0}
+                      className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Stand-up Opslaan
+                    </button>
+                    {todoIssues.length > 0 && selectedTodayIssues.length === 0 && (
+                      <p className="text-xs text-red-500 text-center">Selecteer minstens 1 issue voor vandaag</p>
+                    )}
                   </div>
                 </form>
               )}
