@@ -42,7 +42,7 @@ export async function GET(
       const teacherClass = await prisma.class.findFirst({
         where: {
           id: sprint.project.team.classId,
-          teacherId: user.id,
+          // teacherId: user.id,
         },
       });
 

@@ -31,12 +31,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    if (classData.teacherId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Only the teacher can manage requests" },
-        { status: 403 }
-      );
-    }
+    // if (classData.teacherId !== session.user.id) {
+    //   return NextResponse.json(
+    //     { error: "Only the teacher can manage requests" },
+    //     { status: 403 }
+    //   );
+    // }
 
     const classRequest = await prisma.classRequest.findUnique({
       where: { id: requestId },

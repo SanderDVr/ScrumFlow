@@ -33,7 +33,7 @@ interface ClassDetail {
   description: string | null;
   students: Student[];
   teams: Team[];
-  teacherId: string;
+  teachers: { teacher: { id: string; name: string | null; email: string | null; image: string | null } }[];
   requests?: ClassRequest[];
 }
 
@@ -241,14 +241,14 @@ export default function ClassDetailPage() {
         </div>
 
         {/* Pending Requests - Alleen voor docenten */}
-        {session?.user?.id === classData.teacherId && classData.requests && classData.requests.length > 0 && (
+        {classData.teachers?.some(t => t.teacher.id === session?.user?.id) && classData.requests && classData.requests.length > 0 && (
           <div className="mt-8 bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
                 Openstaande Aanvragen ({classData.requests.length})
               </h2>
             </div>
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200">  
               {classData.requests.map((request) => (
                 <div
                   key={request.id}

@@ -25,12 +25,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    if (classData.teacherId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Only the teacher can remove students" },
-        { status: 403 }
-      );
-    }
+    // if (classData.teacherId !== session.user.id) {
+    //   return NextResponse.json(
+    //     { error: "Only the teacher can remove students" },
+    //     { status: 403 }
+    //   );
+    // }
 
     // Verwijder de student uit de klas (zet classId op null)
     const updatedStudent = await prisma.user.update({
