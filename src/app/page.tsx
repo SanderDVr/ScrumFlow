@@ -4,6 +4,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import AddTeamMemberButton from "@/app/components/AddTeamMemberButton";
 import { useRouter } from "next/navigation";
 
 type Team = {
@@ -1234,7 +1235,10 @@ export default function Home() {
                   )}
                 </div>
                 {session?.user?.role === "teacher" && (
-                  <button onClick={handleDeleteTeam} className="ml-3 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Verwijder team</button>
+                  <>
+                    <button onClick={handleDeleteTeam} className="ml-3 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Verwijder team</button>
+                    <AddTeamMemberButton viewingTeam={viewingTeam} />
+                  </>
                 )}
               </div>
             </div>
