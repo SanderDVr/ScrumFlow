@@ -16,27 +16,56 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { action } = await request.json();
+    console.log("[class request route] session:", {
+      id: session.user.id,
+      role: session.user.role,
+      email: session.user.email,
+    });
 
-    if (!["accept", "reject"].includes(action)) {
+    // Read and validate body with helpful logging for debugging
+    const rawBody = await request.text();
+    console.log("[class request route]", { method: request.method, params: { classId, requestId }, rawBody });
+    let parsedBody: any = null;
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : {};
+    } catch (err) {
+      console.error("Invalid JSON body for request:", rawBody, err);
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    console.log("[class request route] parsedBody:", parsedBody);
+
+    let { action } = parsedBody;
+
+    // Accept synonyms from older frontends
+    if (action === "approve") action = "accept";
+    if (action === "decline") action = "reject";
+
+    if (typeof action !== "string" || !["accept", "reject"].includes(action)) {
+      console.error("Invalid action received", { method: request.method, body: parsedBody });
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    // Check if user is the teacher of this class
-    const classData = await prisma.class.findUnique({
-      where: { id: classId },
-    });
+    // Check if class exists
+    const classData = await prisma.class.findUnique({ where: { id: classId } });
 
     if (!classData) {
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    // if (classData.teacherId !== session.user.id) {
-    //   return NextResponse.json(
-    //     { error: "Only the teacher can manage requests" },
-    //     { status: 403 }
-    //   );
-    // }
+    // Verify the current user is a teacher linked to this class via ClassTeacher
+    const teacherLink = await prisma.classTeacher.findFirst({
+      where: { classId, teacherId: session.user.id },
+    });
+
+    console.log("[class request route] teacherLink:", teacherLink);
+
+    if (!teacherLink) {
+      return NextResponse.json(
+        { error: "Only a teacher of this class can manage requests" },
+        { status: 403 }
+      );
+    }
 
     const classRequest = await prisma.classRequest.findUnique({
       where: { id: requestId },
@@ -78,4 +107,13 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+// Temporary compatibility: accept POST as an alias for PATCH (some clients/proxies may not preserve PATCH)
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ classId: string; requestId: string }> }
+) {
+  // Delegate to PATCH handler so logic stays in one place
+  return await PATCH(request, { params });
 }
