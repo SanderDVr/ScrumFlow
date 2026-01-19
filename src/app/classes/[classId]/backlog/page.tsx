@@ -336,7 +336,7 @@ export default function BacklogPage() {
                     <p className="text-sm text-gray-500 dark:text-gray-400 italic">Geen issues</p>
                   )}
                   <Link 
-                    href={`/sprints/${sprint.id}`}
+                    href={`/`}
                     className="text-xs text-blue-600 hover:underline mt-2 inline-block"
                   >
                     Bekijk sprint →
