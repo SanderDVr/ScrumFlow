@@ -1069,6 +1069,29 @@ export default function Home() {
                     </div>
                   )}
                   <span className="font-medium text-gray-900 dark:text-white">{member.user.name || "Onbekend"}</span>
+                  {session?.user?.role === "teacher" && (
+                    <button
+                      onClick={async () => {
+                        if (!viewingTeam) return;
+                        const ok = confirm(`Weet je zeker dat je ${member.user.name || "deze gebruiker"} uit het team wilt verwijderen?`);
+                        if (!ok) return;
+                        try {
+                          const res = await fetch(`/api/teams/${viewingTeam.id}/members?userId=${member.user.id}`, { method: "DELETE" });
+                          if (!res.ok) {
+                            const data = await res.json().catch(() => ({}));
+                            alert(`Fout bij verwijderen: ${data.error || res.statusText}`);
+                            return;
+                          }
+                          // Refresh team view (simple reload for now)
+                          window.location.reload();
+                        } catch (e) {
+                          console.error(e);
+                          alert("Kon teamlid niet verwijderen");
+                        }
+                      }}
+                      className="ml-2 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                    >Verwijder</button>
+                  )}
                 </div>
               ))}
               {(!teams[0]?.members || teams[0].members.length === 0) && (
@@ -1180,6 +1203,28 @@ export default function Home() {
                       <div className="hidden sm:block">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">{member.user.name || "Onbekend"}</div>
                       </div>
+                      {session?.user?.role === "teacher" && (
+                        <button
+                          onClick={async () => {
+                            if (!viewingTeam) return;
+                            const ok = confirm(`Weet je zeker dat je ${member.user.name || "deze gebruiker"} uit het team wilt verwijderen?`);
+                            if (!ok) return;
+                            try {
+                              const res = await fetch(`/api/teams/${viewingTeam.id}/members?userId=${member.user.id}`, { method: "DELETE" });
+                              if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                alert(`Fout bij verwijderen: ${data.error || res.statusText}`);
+                                return;
+                              }
+                              window.location.reload();
+                            } catch (e) {
+                              console.error(e);
+                              alert("Kon teamlid niet verwijderen");
+                            }
+                          }}
+                          className="ml-2 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                        >Verwijder</button>
+                      )}
                     </div>
                   ))}
                   {viewingTeam.members.length > 5 && (
