@@ -115,13 +115,27 @@ export async function DELETE(
       },
     });
 
+    console.log("DELETE team debug:", {
+      teamId,
+      teamClassId: team?.class?.id,
+      teamClassName: team?.class?.name,
+      userId: user.id,
+      userRole: user.role,
+    });
+
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    if (team.class.teacherId !== user.id) {
+    // Use ClassTeacher join for authorization
+    const teacherLinkForDelete = await prisma.classTeacher.findFirst({
+      where: { classId: team.class.id, teacherId: user.id },
+    });
+    console.log("DELETE team teacherLink:", teacherLinkForDelete);
+
+    if (!teacherLinkForDelete) {
       return NextResponse.json(
-        { error: "You can only delete teams from your own classes" },
+        { error: `You can only delete teams from your own classes (team.classId=${team.class.id}, userId=${user.id})` },
         { status: 403 }
       );
     }

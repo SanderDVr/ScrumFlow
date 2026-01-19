@@ -4,6 +4,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Team = {
   id: string;
@@ -1104,6 +1105,28 @@ export default function Home() {
     setRetrospectives([]);
   };
 
+  const router = useRouter();
+
+  const handleDeleteTeam = async () => {
+    if (!viewingTeam) return;
+    const ok = confirm(`Weet je zeker dat je team "${viewingTeam.name}" wilt verwijderen? Deze actie is onomkeerbaar.`);
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/teams/${viewingTeam.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Fout bij verwijderen: ${data.error || res.statusText}`);
+        return;
+      }
+      // Navigate back to homepage and reload
+      router.push("/");
+      setTimeout(() => { window.location.reload(); }, 300);
+    } catch (e) {
+      console.error(e);
+      alert("Kon team niet verwijderen");
+    }
+  };
+
   // If teacher has selected a team, show the team sprint view
   if (isTeacher && selectedTeamId && viewingTeam) {
     return (
@@ -1165,6 +1188,9 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+                {session?.user?.role === "teacher" && (
+                  <button onClick={handleDeleteTeam} className="ml-3 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Verwijder team</button>
+                )}
               </div>
             </div>
           </div>
