@@ -1,9 +1,51 @@
 "use client";
+import { useRef, useEffect, useState } from "react";
+// Inline team name edit component for teachers
+function TeamNameEdit({ team, onNameChange }: { team: Team; onNameChange: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(team.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setName(team.name);
+  }, [team.name]);
+
+  const handleSave = async () => {
+    if (name.trim() && name !== team.name) {
+      await onNameChange(name.trim());
+    }
+    setEditing(false);
+  };
+
+  return editing ? (
+    <div className="flex items-center gap-2">
+      <input
+        ref={inputRef}
+        className="rounded border px-2 py-1 text-lg font-semibold"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={e => {
+          if (e.key === "Enter") handleSave();
+          if (e.key === "Escape") { setName(team.name); setEditing(false); }
+        }}
+        autoFocus
+      />
+      <button onClick={handleSave} className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700">Opslaan</button>
+    </div>
+  ) : (
+    <div className="flex items-center gap-2">
+      <span className="text-lg font-semibold cursor-pointer" onClick={() => setEditing(true)}>{team.name}</span>
+      <button onClick={() => setEditing(true)} className="text-xs text-gray-500 hover:text-gray-700" title="Naam wijzigen">✏️</button>
+    </div>
+  );
+}
+// ...existing code...
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+// ...existing code...
 import AddTeamMemberButton from "@/app/components/AddTeamMemberButton";
 import { useRouter } from "next/navigation";
 
@@ -1184,7 +1226,30 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingTeam.name}</h2>
+                {session?.user?.role === "teacher" ? (
+                  <TeamNameEdit
+                    team={viewingTeam}
+                    onNameChange={async (newName: string) => {
+                      if (!newName || newName.trim().length < 2) {
+                        alert("Teamnaam is ongeldig");
+                        return;
+                      }
+                      const res = await fetch(`/api/teams/${viewingTeam.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: newName }),
+                      });
+                      if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        alert(`Fout bij bijwerken: ${data.error || res.statusText}`);
+                        return;
+                      }
+                      fetchData();
+                    }}
+                  />
+                ) : (
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingTeam.name}</h2>
+                )}
                 <p className="text-sm text-gray-600 dark:text-gray-400">{viewingTeam.class.name}</p>
               </div>
               <div className="flex items-center gap-2">

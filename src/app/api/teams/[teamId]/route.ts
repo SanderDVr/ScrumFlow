@@ -1,3 +1,58 @@
+// PATCH /api/teams/[teamId] - Update team name (teachers only)
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ teamId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { teamId } = await context.params;
+    let name;
+    try {
+      const body = await request.json();
+      name = body.name;
+    } catch (e) {
+      console.error("PATCH /api/teams/[teamId] JSON parse error:", e);
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    if (!name || typeof name !== "string" || name.length < 2) {
+      return NextResponse.json({ error: "Teamnaam is ongeldig" }, { status: 400 });
+    }
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!user || user.role !== "teacher") {
+      return NextResponse.json({ error: "Only teachers can update teams" }, { status: 403 });
+    }
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { class: true },
+    });
+    if (!team) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+    // Use ClassTeacher join for authorization
+    const teacherLink = await prisma.classTeacher.findFirst({
+      where: { classId: team.class.id, teacherId: user.id },
+    });
+    if (!teacherLink) {
+      return NextResponse.json({ error: "You can only update teams from your own classes" }, { status: 403 });
+    }
+    try {
+      const updated = await prisma.team.update({
+        where: { id: teamId },
+        data: { name },
+      });
+      return NextResponse.json({ message: "Teamnaam bijgewerkt", team: updated });
+    } catch (e) {
+      console.error("PATCH /api/teams/[teamId] prisma.team.update error:", e);
+      return NextResponse.json({ error: "Failed to update team name (db error)" }, { status: 500 });
+    }
+  } catch (error) {
+    console.error("PATCH /api/teams/[teamId] unknown error:", error);
+    return NextResponse.json({ error: "Failed to update team name (unknown error)" }, { status: 500 });
+  }
+}
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -24,7 +79,7 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            teacherId: true,
+            teachers: true, // Array of ClassTeacher
           },
         },
         members: {
@@ -62,9 +117,9 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Check autorisatie: docent van de klas of lid van het team
-    const isTeacher = user.role === "teacher" && team.class.teacherId === user.id;
-    const isMember = team.members.some(m => m.userId === user.id);
+    // Check autorisatie: docent van de klas (via ClassTeacher) of lid van het team
+    const isTeacher = user.role === "teacher" && Array.isArray(team.class.teachers) && team.class.teachers.some((t: any) => t.teacherId === user.id);
+    const isMember = Array.isArray(team.members) && team.members.some((m: any) => m.user && m.user.id === user.id);
 
     if (!isTeacher && !isMember) {
       return NextResponse.json(
