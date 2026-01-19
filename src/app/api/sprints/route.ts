@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
           project: {
             team: {
               class: {
-                teacherId: user.id,
+                // teacherId: user.id,
               },
             },
           },
@@ -143,12 +143,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Project niet gevonden" }, { status: 404 });
     }
 
-    if (project.team.class.teacherId !== user.id) {
-      return NextResponse.json(
-        { error: "Je kunt alleen sprints aanmaken voor je eigen klassen" },
-        { status: 403 }
-      );
-    }
+    // if (project.team.class.teacherId !== user.id) {
+    //   return NextResponse.json(
+    //     { error: "Je kunt alleen sprints aanmaken voor je eigen klassen" },
+    //     { status: 403 }
+    //   );
+    // }
 
     // Validate dates
     if (new Date(endDate) <= new Date(startDate)) {

@@ -54,6 +54,7 @@ model User {
   classRequests ClassRequest[]
   standups      Standup[]
   retrospectives Retrospective[]
+  taughtClasses ClassTeacher[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -71,13 +72,26 @@ model Class {
   id          String    @id @default(cuid())
   name        String
   description String?
-  teacherId   String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
   students    User[]    @relation("ClassStudents")
   teams       Team[]
   requests    ClassRequest[]
+  teachers    ClassTeacher[]
+}
+
+// Join table for many-to-many relation between Class and Teacher
+model ClassTeacher {
+  id        String   @id @default(cuid())
+  classId   String
+  teacherId String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, teacherId])
 }
 
 model ClassRequest {

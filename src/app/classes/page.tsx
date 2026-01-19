@@ -148,7 +148,7 @@ export default function ClassesPage() {
       const response = await fetch(`/api/classes/${selectedClass.id}/requests/${requestId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
+        body: JSON.stringify({ action: "accept" }),
       });
 
       if (response.ok) {

@@ -49,8 +49,12 @@ export async function POST(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    // Verifieer dat de docent eigenaar is van de klas
-    if (team.class.teacherId !== user.id) {
+    // Verify the current user is a teacher linked to this class via ClassTeacher
+    const teacherLink = await prisma.classTeacher.findFirst({
+      where: { classId: team.classId, teacherId: user.id },
+    });
+
+    if (!teacherLink) {
       return NextResponse.json(
         { error: "You can only add members to teams in your own classes" },
         { status: 403 }
@@ -190,7 +194,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    if (team.class.teacherId !== user.id) {
+    const teacherLink = await prisma.classTeacher.findFirst({
+      where: { classId: team.classId, teacherId: user.id },
+    });
+
+    if (!teacherLink) {
       return NextResponse.json(
         { error: "You can only remove members from teams in your own classes" },
         { status: 403 }

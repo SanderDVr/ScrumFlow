@@ -20,45 +20,63 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Voor docenten: toon alleen hun eigen klassen
+    // Voor docenten: toon alleen hun gekoppelde klassen via ClassTeacher
     // Voor studenten: toon alle klassen
-    const whereClause = user.role === "teacher" 
-      ? { teacherId: user.id }
-      : {};
+    let classes;
+    const includePayload = {
+      students: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+      },
+      teams: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      requests: {
+        where: {
+          status: "pending",
+        },
+        select: {
+          id: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+    };
 
-    const classes = await prisma.class.findMany({
-      where: whereClause,
-      include: {
-        students: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        teams: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        requests: {
-          where: {
-            status: "pending",
-          },
-          select: {
-            id: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    if (user.role === "teacher") {
+      const teacherClassLinks = await prisma.classTeacher.findMany({
+        where: { teacherId: user.id },
+        select: { classId: true },
+      });
+      const classIds = teacherClassLinks.map((link) => link.classId);
+
+      classes = await prisma.class.findMany({
+        where: classIds.length ? { id: { in: classIds } } : undefined,
+        include: includePayload,
+        orderBy: { createdAt: "desc" },
+      });
+    } else {
+      classes = await prisma.class.findMany({
+        include: includePayload,
+        orderBy: { createdAt: "desc" },
+      });
+    }
 
     // Map 'requests' to 'classRequests' voor frontend compatibility
-    const classesWithRequests = classes.map(classItem => ({
+    const classesWithRequests = classes.map((classItem) => ({
       ...classItem,
       classRequests: classItem.requests,
     }));
@@ -112,7 +130,6 @@ export async function POST(request: Request) {
       data: {
         name,
         description,
-        teacherId: user.id,
       },
       include: {
         students: {
@@ -129,6 +146,14 @@ export async function POST(request: Request) {
             name: true,
           },
         },
+      },
+    });
+
+    // Add teacher to ClassTeacher join table
+    await prisma.classTeacher.create({
+      data: {
+        classId: newClass.id,
+        teacherId: user.id,
       },
     });
 

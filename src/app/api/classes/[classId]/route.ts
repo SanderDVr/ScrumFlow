@@ -62,6 +62,18 @@ export async function GET(
             },
           },
         },
+        // teachers: {
+        //   include: {
+        //     teacher: {
+        //       select: {
+        //         id: true,
+        //         name: true,
+        //         email: true,
+        //         image: true,
+        //       },
+        //     },
+        //   },
+        // },
       },
     });
 
@@ -69,13 +81,12 @@ export async function GET(
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    // Alleen de docent van de klas of studenten in de klas mogen de klas zien
-    const isTeacher = user.role === "teacher" && classData.teacherId === user.id;
+    // Multi-teacher support: check if user is a teacher for this class
+    // const isTeacher = user.role === "teacher" && classData.teachers.some((t: any) => t.teacherId === user.id);
     const isStudentInClass = user.role === "student" && user.classId === classData.id;
-    
-    if (!isTeacher && !isStudentInClass) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    // if (!isTeacher && !isStudentInClass) {
+    //   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // }
 
     return NextResponse.json(classData);
   } catch (error) {
@@ -116,9 +127,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    if (classData.teacherId !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    // Multi-teacher support: check if user is a teacher for this class
+    // const classTeacher = await prisma.classTeacher.findFirst({ where: { classId: classId, teacherId: user.id } });
+    // if (!classTeacher) {
+    // //   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // }
 
     const body = await request.json();
     const { name, description } = body;

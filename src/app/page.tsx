@@ -1142,16 +1142,21 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500 dark:text-gray-400">Teamleden:</span>
-                <div className="flex -space-x-2">
-                  {viewingTeam.members.slice(0, 5).map((member, i) => (
-                    <div key={i} className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800">
-                      {member.user.image ? (
-                        <Image src={member.user.image} alt={member.user.name || "Member"} width={32} height={32} />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">
-                          {member.user.name?.charAt(0) || "?"}
-                        </div>
-                      )}
+                <div className="flex items-center gap-3">
+                  {viewingTeam.members.slice(0, 5).map((member) => (
+                    <div key={member.userId} className="flex items-center gap-2 rounded-md px-2 py-1 bg-white/60 dark:bg-black/20">
+                      <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800 flex-shrink-0">
+                        {member.user.image ? (
+                          <Image src={member.user.image} alt={member.user.name || "Member"} width={32} height={32} />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">
+                            {member.user.name?.charAt(0) || "?"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="hidden sm:block">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{member.user.name || "Onbekend"}</div>
+                      </div>
                     </div>
                   ))}
                   {viewingTeam.members.length > 5 && (

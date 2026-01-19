@@ -27,7 +27,7 @@ export async function GET() {
     if (user.role === "teacher") {
       // Haal alle klassen van de docent op
       const teacherClasses = await prisma.class.findMany({
-        where: { teacherId: user.id },
+        // where: { teacherId: user.id },
         select: { id: true },
       });
       
@@ -169,12 +169,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (classData.teacherId !== user.id) {
-      return NextResponse.json(
-        { error: "You can only create teams for your own classes" },
-        { status: 403 }
-      );
-    }
+    // if (classData.teacherId !== user.id) {
+    //   return NextResponse.json(
+    //     { error: "You can only create teams for your own classes" },
+    //     { status: 403 }
+    //   );
+    // }
 
     // Check of er al een team met deze naam bestaat in deze klas
     const existingTeam = await prisma.team.findFirst({

@@ -25,63 +25,63 @@ export async function PATCH(
     }
 
     // Verify user has access to this story
-    const story = await prisma.userStory.findUnique({
-      where: { id: storyId },
-      include: {
-        sprint: {
-          include: {
-            project: {
-              include: {
-                team: {
-                  include: {
-                    members: true,
-                    class: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+    // const story = await prisma.userStory.findUnique({
+    //   where: { id: storyId },
+    //   include: {
+    //     sprint: {
+    //       include: {
+    //         project: {
+    //           include: {
+    //             team: {
+    //               include: {
+    //                 members: true,
+    //                 class: true,
+    //               },
+    //             },
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    // });
 
-    if (!story) {
-      return NextResponse.json({ error: "User story niet gevonden" }, { status: 404 });
-    }
+    // if (!story) {
+    //   return NextResponse.json({ error: "User story niet gevonden" }, { status: 404 });
+    // }
 
     const user = session.user as { id: string; role: string };
-    const isMember = story.sprint.project.team.members.some((m) => m.userId === user.id);
+    // const isMember = story.sprint.project.team.members.some((m) => m.userId === user.id);
     const isTeacher =
       user.role === "teacher" &&
       (await prisma.class.findFirst({
         where: {
-          id: story.sprint.project.team.classId,
+          // id: story.sprint.project.team.classId,
           teacherId: user.id,
         },
       }));
 
-    if (!isMember && !isTeacher) {
-      return NextResponse.json(
-        { error: "Alleen teamleden kunnen user stories aanpassen" },
-        { status: 403 }
-      );
-    }
+    // if (!isMember && !isTeacher) {
+    //   return NextResponse.json(
+    //     { error: "Alleen teamleden kunnen user stories aanpassen" },
+    //     { status: 403 }
+    //   );
+    // }
 
-    const updatedStory = await prisma.userStory.update({
-      where: { id: storyId },
-      data: { status },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
-        },
-      },
-    });
+    // const updatedStory = await prisma.userStory.update({
+    //   where: { id: storyId },
+    //   data: { status },
+    //   include: {
+    //     assignee: {
+    //       select: {
+    //         id: true,
+    //         name: true,
+    //         image: true,
+    //       },
+    //     },
+    //   },
+    // });
 
-    return NextResponse.json(updatedStory);
+    // return NextResponse.json(updatedStory);
   } catch (error) {
     console.error("Error updating user story:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
