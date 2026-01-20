@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
             select: {
               id: true,
               name: true,
+              repositoryUrl: true,
+              repositoryOwner: true,
+              repositoryName: true,
               team: {
                 select: {
                   id: true,
@@ -84,6 +87,9 @@ export async function GET(req: NextRequest) {
           project: {
             id: project.id,
             name: project.name,
+            repositoryUrl: project.repositoryUrl,
+            repositoryOwner: project.repositoryOwner,
+            repositoryName: project.repositoryName,
             team: {
               id: teamMembership.team.id,
               name: teamMembership.team.name,
