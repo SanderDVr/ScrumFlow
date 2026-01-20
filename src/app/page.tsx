@@ -633,7 +633,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
                 {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </header>
@@ -657,7 +657,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
                 {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </header>
@@ -680,7 +680,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
                 {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </header>
@@ -710,7 +710,7 @@ export default function Home() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">{teams[0]?.name}</div>
                   </div>
                 </div>
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </div>
@@ -1266,7 +1266,7 @@ export default function Home() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">Docent</div>
                   </div>
                 </div>
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </div>
@@ -1610,7 +1610,7 @@ export default function Home() {
               </div>
             </div>
             <Link href="/classes" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">Klassen beheren</Link>
-            <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+            <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
           </div>
         </div>
       </header>
