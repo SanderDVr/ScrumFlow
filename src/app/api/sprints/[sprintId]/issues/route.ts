@@ -246,8 +246,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Issue not found" }, { status: 404 });
     }
 
-    // Don't allow moving closed issues
-    if (existingIssue.state === "closed" || existingIssue.status === "done") {
+    // Don't allow moving issues that are closed on GitHub
+    if (existingIssue.state === "closed") {
       return NextResponse.json({ 
         error: "Gesloten issues kunnen niet worden verplaatst." 
       }, { status: 400 });

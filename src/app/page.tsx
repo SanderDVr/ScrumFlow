@@ -157,6 +157,7 @@ export default function Home() {
   // Student sprint view state
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
+  const [autoMovedIssues, setAutoMovedIssues] = useState<string[]>([]);
   const [standups, setStandups] = useState<Standup[]>([]);
   const [retrospectives, setRetrospectives] = useState<Retrospective[]>([]);
   const [activeTab, setActiveTab] = useState<"board" | "standup" | "retro">("board");
@@ -290,6 +291,7 @@ export default function Home() {
   const moveIssue = async (issueId: string, newStatus: string) => {
     if (!selectedSprintId) return;
     try {
+      console.log("moveIssue called", { issueId, newStatus, selectedSprintId });
       const response = await fetch(`/api/sprints/${selectedSprintId}/issues`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -297,12 +299,25 @@ export default function Home() {
       });
 
       if (response.ok) {
+        console.log("moveIssue success", { issueId, newStatus });
         fetchSprintData(selectedSprintId);
       }
     } catch (error) {
       console.error("Error moving issue:", error);
     }
   };
+
+  // Auto-move open issues that are in 'done' back to 'todo' (no button needed)
+  useEffect(() => {
+    if (!issues || issues.length === 0) return;
+    issues.forEach((issue) => {
+      if (issue.state === "open" && issue.status === "done" && !autoMovedIssues.includes(issue.id)) {
+        console.log("Auto-moving issue to todo", { id: issue.id, issueNumber: issue.issueNumber, status: issue.status });
+        setAutoMovedIssues((prev) => [...prev, issue.id]);
+        moveIssue(issue.id, "todo");
+      }
+    });
+  }, [issues]);
 
   const fetchClosedIssuesYesterday = async () => {
     if (!selectedSprintId) return;
@@ -579,6 +594,36 @@ export default function Home() {
     const inProgressIssues = issues.filter((i) => i.status === "in_progress");
     const doneIssues = issues.filter((i) => i.status === "done");
 
+    // Handler to close an issue (for students)
+    const handleCloseIssue = (issueId: string) => {
+      if (!selectedSprintId) return;
+      const ok = confirm("Weet je zeker dat je dit issue wilt sluiten?");
+      if (!ok) return;
+      // Find classId from team
+      const classId = teams[0]?.class?.id;
+      if (!classId) {
+        alert("Geen klas gevonden voor dit team.");
+        return;
+      }
+      fetch(`/api/classes/${classId}/backlog/${issueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: "closed" }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(`Fout bij sluiten: ${data.error || res.statusText}`);
+            return;
+          }
+          fetchSprintData(selectedSprintId);
+        })
+        .catch((e) => {
+          console.error(e);
+          alert("Kon issue niet sluiten");
+        });
+    };
+
     // No class yet
     if (!userData?.classId) {
       return (
@@ -814,44 +859,50 @@ export default function Home() {
             {/* Main Content */}
             <div className="flex-1">
               {activeTab === "board" && (
-            <div className="grid gap-4 md:grid-cols-3">
-              {/* To Do */}
-              <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-                <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
-                  <span>To Do</span>
-                  <span className="rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700">{todoIssues.length}</span>
-                </h3>
-                <div className="space-y-3">
-                  {todoIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} />)}
-                  {todoIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
-                </div>
-              </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {/* To Do */}
+                  <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                    <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                      <span>To Do</span>
+                      <span className="rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700">{todoIssues.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {todoIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} onMove={moveIssue} onClose={handleCloseIssue} />
+                      ))}
+                      {todoIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                    </div>
+                  </div>
 
-              {/* Doing */}
-              <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-                <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
-                  <span>Doing</span>
-                  <span className="rounded-full bg-blue-200 px-2 py-1 text-xs dark:bg-blue-700">{inProgressIssues.length}</span>
-                </h3>
-                <div className="space-y-3">
-                  {inProgressIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} />)}
-                  {inProgressIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
-                </div>
-              </div>
+                  {/* Doing */}
+                  <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                    <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                      <span>Doing</span>
+                      <span className="rounded-full bg-blue-200 px-2 py-1 text-xs dark:bg-blue-700">{inProgressIssues.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {inProgressIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} onMove={moveIssue} onClose={handleCloseIssue} />
+                      ))}
+                      {inProgressIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                    </div>
+                  </div>
 
-              {/* Done */}
-              <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-                <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
-                  <span>Done</span>
-                  <span className="rounded-full bg-green-200 px-2 py-1 text-xs dark:bg-green-700">{doneIssues.length}</span>
-                </h3>
-                <div className="space-y-3">
-                  {doneIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} />)}
-                  {doneIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                  {/* Done */}
+                  <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                    <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                      <span>Done</span>
+                      <span className="rounded-full bg-green-200 px-2 py-1 text-xs dark:bg-green-700">{doneIssues.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {doneIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} onMove={moveIssue} onClose={handleCloseIssue} />
+                      ))}
+                      {doneIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
           {activeTab === "standup" && (
             <div>
@@ -1624,9 +1675,9 @@ export default function Home() {
   );
 }
 
-function IssueCard({ issue, onMove, readOnly = false }: { issue: GitHubIssue; onMove: (issueId: string, status: string) => void; readOnly?: boolean }) {
+function IssueCard({ issue, onMove, onClose, readOnly = false }: { issue: GitHubIssue; onMove: (issueId: string, status: string) => void; onClose?: (issueId: string) => void; readOnly?: boolean }) {
   const labels = issue.labels ? JSON.parse(issue.labels) : [];
-  const isClosed = issue.state === "closed" || issue.status === "done";
+  const isClosed = issue.state === "closed";
   
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
@@ -1649,11 +1700,22 @@ function IssueCard({ issue, onMove, readOnly = false }: { issue: GitHubIssue; on
         </span>
       </div>
       {!isClosed && !readOnly && (
-        <div className="mt-3">
-          <select value={issue.status} onChange={(e) => onMove(issue.id, e.target.value)} className="w-full text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
-            <option value="todo">To Do</option>
-            <option value="in_progress">Doing</option>
-          </select>
+        <div className="mt-3 flex items-center gap-2">
+          {issue.status === "done" ? (
+            <div className="flex items-center gap-2 w-full">
+              <span className="flex-1 text-sm rounded px-2 py-1 text-gray-700 dark:text-gray-200 bg-green-50 dark:bg-green-900/20">Done</span>
+            </div>
+          ) : (
+            <>
+              <select value={issue.status} onChange={(e) => onMove(issue.id, e.target.value)} className="flex-1 text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                <option value="todo">To Do</option>
+                <option value="in_progress">Doing</option>
+              </select>
+              {onClose && issue.status === "in_progress" && (
+                <button onClick={() => onClose(issue.id)} className="ml-2 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700">Sluit issue</button>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
