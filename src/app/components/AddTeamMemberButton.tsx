@@ -52,7 +52,7 @@ export default function AddTeamMemberButton({ viewingTeam }) {
           <select
             value={selectedStudentId}
             onChange={e => setSelectedStudentId(e.target.value)}
-            className="rounded border px-2 py-1"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           >
             <option value="">Selecteer student...</option>
             {students.map(s => (
