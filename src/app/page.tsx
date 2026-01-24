@@ -165,6 +165,7 @@ export default function Home() {
   // Teacher team view state
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
+  const [standupsToday, setStandupsToday] = useState<Set<string>>(new Set());
   
   // Forms
   const [showStandupForm, setShowStandupForm] = useState(false);
@@ -199,6 +200,12 @@ export default function Home() {
       setSelectedSprintId(activeSprint?.id || sprints[0].id);
     }
   }, [sprints, selectedSprintId, session]);
+
+  useEffect(() => {
+    if (session?.user?.role === "teacher") {
+      checkTodaysStandups();
+    }
+  }, [session]);
 
   // For teachers: when team is selected, filter sprints and select active one
   useEffect(() => {
@@ -285,6 +292,37 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error fetching sprint data:", error);
+    }
+  };
+
+  const checkTodaysStandups = async () => {
+    try {
+      const response = await fetch('/api/teacher/standups');
+      
+      if (response.ok) {
+        const data = await response.json();
+        const today = new Date();
+        
+        const todayStandupUserIds = new Set<string>();
+        
+        data.standups?.forEach((standup: any) => {
+          const standupDate = new Date(standup.date);
+          
+          if (standupDate.getDate() === today.getDate() &&
+              standupDate.getMonth() === today.getMonth() &&
+              standupDate.getFullYear() === today.getFullYear()) {
+            
+            const userId = standup.userId || standup.user?.id;
+            if (userId) {
+              todayStandupUserIds.add(userId);
+            }
+          }
+        });
+        
+        setStandupsToday(todayStandupUserIds);
+      }
+    } catch (error) {
+      console.error('Error:', error);
     }
   };
 
@@ -1647,11 +1685,36 @@ export default function Home() {
                               <h5 className="text-lg font-semibold text-gray-900 dark:text-white">{team.name}</h5>
                               {team.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{team.description}</p>}
                               <div className="mt-4 flex -space-x-2">
-                                {team.members.slice(0, 3).map((member, i) => (
-                                  <div key={i} className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800">
-                                    {member.user.image ? <Image src={member.user.image} alt={member.user.name || "Member"} width={32} height={32} /> : <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">{member.user.name?.charAt(0) || "?"}</div>}
-                                  </div>
-                                ))}
+                                {team.members.slice(0, 3).map((member, i) => {
+                                  const hasStandupToday = Array.from(standupsToday).some(id => 
+                                    id === member.userId || 
+                                    id.trim() === member.userId?.trim()
+                                  );
+
+                                  return (
+                                    <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1 bg-white/60 dark:bg-black/20">
+                                      <div className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800 flex-shrink-0">
+                                        {member.user.image ? (
+                                          <>
+                                            <Image 
+                                              src={member.user.image} 
+                                              alt={member.user.name || "Member"} 
+                                              width={32} 
+                                              height={32}
+                                              className={hasStandupToday ? "brightness-110" : "brightness-90"}
+                                            />
+                                            {/* Rode overlay by default */}
+                                            <div className={`absolute inset-0 rounded-full ${hasStandupToday ? 'bg-green-500/40' : 'bg-red-500/30'}`}></div>
+                                          </>
+                                        ) : (
+                                          <div className={`flex h-full w-full items-center justify-center text-xs font-medium ${hasStandupToday ? 'bg-green-500 text-white' : 'bg-red-400 dark:bg-red-600 text-white'}`}>
+                                            {member.user.name?.charAt(0) || "?"}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                                 {team.members.length > 3 && <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs dark:border-gray-800 dark:bg-gray-700">+{team.members.length - 3}</div>}
                               </div>
                             </button>
