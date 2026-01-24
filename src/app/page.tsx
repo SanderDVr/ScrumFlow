@@ -992,7 +992,7 @@ export default function Home() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Blokkades (optioneel)</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Ben je ergens tegenaan gelopen? (blokkades)</label>
                       <textarea value={standupBlockers} onChange={(e) => setStandupBlockers(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={2} />
                     </div>
                     <button 
@@ -1049,7 +1049,7 @@ export default function Home() {
                         </div>
                         {standup.blockers && (
                           <div>
-                            <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                            <h4 className="font-medium text-gray-900 dark:text-white">Blokkades</h4>
                             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
                           </div>
                         )}
@@ -1530,7 +1530,7 @@ export default function Home() {
                             </div>
                             {standup.blockers && (
                               <div>
-                                <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                                <h4 className="font-medium text-gray-900 dark:text-white">Blokkades</h4>
                                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
                               </div>
                             )}
