@@ -40,12 +40,10 @@ function TeamNameEdit({ team, onNameChange }: { team: Team; onNameChange: (name:
     </div>
   );
 }
-// ...existing code...
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-// ...existing code...
 import AddTeamMemberButton from "@/app/components/AddTeamMemberButton";
 import { useRouter } from "next/navigation";
 
@@ -1310,30 +1308,28 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div>
-                {session?.user?.role === "teacher" ? (
-                  <TeamNameEdit
-                    team={viewingTeam}
-                    onNameChange={async (newName: string) => {
-                      if (!newName || newName.trim().length < 2) {
-                        alert("Teamnaam is ongeldig");
-                        return;
-                      }
-                      const res = await fetch(`/api/teams/${viewingTeam.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name: newName }),
-                      });
-                      if (!res.ok) {
-                        const data = await res.json().catch(() => ({}));
-                        alert(`Fout bij bijwerken: ${data.error || res.statusText}`);
-                        return;
-                      }
-                      fetchData();
-                    }}
-                  />
-                ) : (
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingTeam.name}</h2>
-                )}
+                <TeamNameEdit
+                  team={viewingTeam}
+                  onNameChange={async (newName: string) => {
+                    if (!newName || newName.trim().length < 2) {
+                      alert("Teamnaam is ongeldig");
+                      return;
+                    }
+                    const res = await fetch(`/api/teams/${viewingTeam.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name: newName }),
+                    });
+                    if (!res.ok) {
+                      const data = await res.json().catch(() => ({}));
+                      alert(`Fout bij bijwerken: ${data.error || res.statusText}`);
+                      return;
+                    }
+                    fetchData();
+                    // Also update the viewingTeam state
+                    setViewingTeam(prev => prev ? {...prev, name: newName} : null);
+                  }}
+                />
                 <p className="text-sm text-gray-600 dark:text-gray-400">{viewingTeam.class.name}</p>
               </div>
               <div className="flex items-center gap-2">
