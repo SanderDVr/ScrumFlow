@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
   const { classId, issueId } = params;
   
   const data = await req.json();
-  const { title, body, sprintId } = data;
+  const { title, body, sprintId, state } = data;
 
   try {
     // Get the issue with project info
@@ -59,9 +59,13 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
         updateData.status = 'todo'; // Reset status when moving to backlog
       }
     }
+    if (state === 'closed') {
+      updateData.state = 'closed';
+      updateData.status = 'done';
+    }
 
-    // Update on GitHub if repository is configured and title/body changed
-    if ((title !== undefined || body !== undefined) && issue.project.repositoryOwner && issue.project.repositoryName) {
+    // Update on GitHub if repository is configured and title/body/state changed
+    if ((title !== undefined || body !== undefined || state === 'closed') && issue.project.repositoryOwner && issue.project.repositoryName) {
       const accessToken = await getValidGitHubToken(session.user.id);
       
       if (accessToken) {
@@ -74,6 +78,7 @@ export async function PATCH(req: NextRequest, context: { params: { classId: stri
             issue_number: issue.issueNumber,
             title: title || issue.title,
             body: body !== undefined ? body : issue.body,
+            state: state === 'closed' ? 'closed' : undefined,
             headers: {
               'X-GitHub-Api-Version': '2022-11-28'
             }

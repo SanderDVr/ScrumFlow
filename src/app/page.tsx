@@ -40,12 +40,10 @@ function TeamNameEdit({ team, onNameChange }: { team: Team; onNameChange: (name:
     </div>
   );
 }
-// ...existing code...
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-// ...existing code...
 import AddTeamMemberButton from "@/app/components/AddTeamMemberButton";
 import { useRouter } from "next/navigation";
 
@@ -157,6 +155,7 @@ export default function Home() {
   // Student sprint view state
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
+  const [autoMovedIssues, setAutoMovedIssues] = useState<string[]>([]);
   const [standups, setStandups] = useState<Standup[]>([]);
   const [retrospectives, setRetrospectives] = useState<Retrospective[]>([]);
   const [activeTab, setActiveTab] = useState<"board" | "standup" | "retro">("board");
@@ -164,6 +163,7 @@ export default function Home() {
   // Teacher team view state
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
+  const [standupsToday, setStandupsToday] = useState<Set<string>>(new Set());
   
   // Forms
   const [showStandupForm, setShowStandupForm] = useState(false);
@@ -198,6 +198,12 @@ export default function Home() {
       setSelectedSprintId(activeSprint?.id || sprints[0].id);
     }
   }, [sprints, selectedSprintId, session]);
+
+  useEffect(() => {
+    if (session?.user?.role === "teacher") {
+      checkTodaysStandups();
+    }
+  }, [session]);
 
   // For teachers: when team is selected, filter sprints and select active one
   useEffect(() => {
@@ -287,9 +293,41 @@ export default function Home() {
     }
   };
 
+  const checkTodaysStandups = async () => {
+    try {
+      const response = await fetch('/api/teacher/standups');
+      
+      if (response.ok) {
+        const data = await response.json();
+        const today = new Date();
+        
+        const todayStandupUserIds = new Set<string>();
+        
+        data.standups?.forEach((standup: any) => {
+          const standupDate = new Date(standup.date);
+          
+          if (standupDate.getDate() === today.getDate() &&
+              standupDate.getMonth() === today.getMonth() &&
+              standupDate.getFullYear() === today.getFullYear()) {
+            
+            const userId = standup.userId || standup.user?.id;
+            if (userId) {
+              todayStandupUserIds.add(userId);
+            }
+          }
+        });
+        
+        setStandupsToday(todayStandupUserIds);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
   const moveIssue = async (issueId: string, newStatus: string) => {
     if (!selectedSprintId) return;
     try {
+      console.log("moveIssue called", { issueId, newStatus, selectedSprintId });
       const response = await fetch(`/api/sprints/${selectedSprintId}/issues`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -297,12 +335,25 @@ export default function Home() {
       });
 
       if (response.ok) {
+        console.log("moveIssue success", { issueId, newStatus });
         fetchSprintData(selectedSprintId);
       }
     } catch (error) {
       console.error("Error moving issue:", error);
     }
   };
+
+  // Auto-move open issues that are in 'done' back to 'todo' (no button needed)
+  useEffect(() => {
+    if (!issues || issues.length === 0) return;
+    issues.forEach((issue) => {
+      if (issue.state === "open" && issue.status === "done" && !autoMovedIssues.includes(issue.id)) {
+        console.log("Auto-moving issue to todo", { id: issue.id, issueNumber: issue.issueNumber, status: issue.status });
+        setAutoMovedIssues((prev) => [...prev, issue.id]);
+        moveIssue(issue.id, "todo");
+      }
+    });
+  }, [issues]);
 
   const fetchClosedIssuesYesterday = async () => {
     if (!selectedSprintId) return;
@@ -579,6 +630,36 @@ export default function Home() {
     const inProgressIssues = issues.filter((i) => i.status === "in_progress");
     const doneIssues = issues.filter((i) => i.status === "done");
 
+    // Handler to close an issue (for students)
+    const handleCloseIssue = (issueId: string) => {
+      if (!selectedSprintId) return;
+      const ok = confirm("Weet je zeker dat je dit issue wilt sluiten?");
+      if (!ok) return;
+      // Find classId from team
+      const classId = teams[0]?.class?.id;
+      if (!classId) {
+        alert("Geen klas gevonden voor dit team.");
+        return;
+      }
+      fetch(`/api/classes/${classId}/backlog/${issueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: "closed" }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(`Fout bij sluiten: ${data.error || res.statusText}`);
+            return;
+          }
+          fetchSprintData(selectedSprintId);
+        })
+        .catch((e) => {
+          console.error(e);
+          alert("Kon issue niet sluiten");
+        });
+    };
+
     // No class yet
     if (!userData?.classId) {
       return (
@@ -588,7 +669,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
                 {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </header>
@@ -612,7 +693,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
                 {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </header>
@@ -635,7 +716,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ScrumFlow</h1>
               <div className="flex items-center gap-4">
                 {session.user?.image && <Image src={session.user.image} alt={session.user.name || "User"} width={40} height={40} className="rounded-full" />}
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </header>
@@ -665,7 +746,7 @@ export default function Home() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">{teams[0]?.name}</div>
                   </div>
                 </div>
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </div>
@@ -714,27 +795,22 @@ export default function Home() {
         {/* Repository Section */}
         <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
           <div className="mx-auto max-w-7xl px-4 py-3">
-            {selectedSprint?.project.repositoryUrl ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Repository:</span>
-                  <a href={selectedSprint.project.repositoryUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-                    {selectedSprint.project.repositoryOwner}/{selectedSprint.project.repositoryName}
-                  </a>
-                </div>
-                <button onClick={() => setShowRepoForm(true)} className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400">Wijzigen</button>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                </svg>
+                <a href={selectedSprint?.project.repositoryUrl || ''} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                  {selectedSprint?.project.repositoryUrl}
+                </a>
               </div>
-            ) : (
               <button onClick={() => setShowRepoForm(true)} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400">
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
                   <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
                 </svg>
                 + GitHub Repository Koppelen
               </button>
-            )}
+            </div>
           </div>
         </div>
 
@@ -814,44 +890,50 @@ export default function Home() {
             {/* Main Content */}
             <div className="flex-1">
               {activeTab === "board" && (
-            <div className="grid gap-4 md:grid-cols-3">
-              {/* To Do */}
-              <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-                <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
-                  <span>To Do</span>
-                  <span className="rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700">{todoIssues.length}</span>
-                </h3>
-                <div className="space-y-3">
-                  {todoIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} />)}
-                  {todoIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
-                </div>
-              </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {/* To Do */}
+                  <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                    <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                      <span>To Do</span>
+                      <span className="rounded-full bg-gray-200 px-2 py-1 text-xs dark:bg-gray-700">{todoIssues.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {todoIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} onMove={moveIssue} onClose={handleCloseIssue} />
+                      ))}
+                      {todoIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                    </div>
+                  </div>
 
-              {/* Doing */}
-              <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-                <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
-                  <span>Doing</span>
-                  <span className="rounded-full bg-blue-200 px-2 py-1 text-xs dark:bg-blue-700">{inProgressIssues.length}</span>
-                </h3>
-                <div className="space-y-3">
-                  {inProgressIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} />)}
-                  {inProgressIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
-                </div>
-              </div>
+                  {/* Doing */}
+                  <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                    <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                      <span>Doing</span>
+                      <span className="rounded-full bg-blue-200 px-2 py-1 text-xs dark:bg-blue-700">{inProgressIssues.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {inProgressIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} onMove={moveIssue} onClose={handleCloseIssue} />
+                      ))}
+                      {inProgressIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                    </div>
+                  </div>
 
-              {/* Done */}
-              <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-                <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
-                  <span>Done</span>
-                  <span className="rounded-full bg-green-200 px-2 py-1 text-xs dark:bg-green-700">{doneIssues.length}</span>
-                </h3>
-                <div className="space-y-3">
-                  {doneIssues.map((issue) => <IssueCard key={issue.id} issue={issue} onMove={moveIssue} />)}
-                  {doneIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                  {/* Done */}
+                  <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+                    <h3 className="mb-4 flex items-center justify-between text-lg font-semibold text-gray-900 dark:text-white">
+                      <span>Done</span>
+                      <span className="rounded-full bg-green-200 px-2 py-1 text-xs dark:bg-green-700">{doneIssues.length}</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {doneIssues.map((issue) => (
+                        <IssueCard key={issue.id} issue={issue} onMove={moveIssue} onClose={handleCloseIssue} />
+                      ))}
+                      {doneIssues.length === 0 && <p className="text-center text-sm text-gray-500 dark:text-gray-400">Geen issues</p>}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
           {activeTab === "standup" && (
             <div>
@@ -946,7 +1028,7 @@ export default function Home() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Blokkades (optioneel)</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Ben je ergens tegenaan gelopen? (blokkades)</label>
                       <textarea value={standupBlockers} onChange={(e) => setStandupBlockers(e.target.value)} className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" rows={2} />
                     </div>
                     <button 
@@ -1003,7 +1085,7 @@ export default function Home() {
                         </div>
                         {standup.blockers && (
                           <div>
-                            <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                            <h4 className="font-medium text-gray-900 dark:text-white">Blokkades</h4>
                             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
                           </div>
                         )}
@@ -1215,7 +1297,7 @@ export default function Home() {
                     <div className="text-xs text-gray-500 dark:text-gray-400">Docent</div>
                   </div>
                 </div>
-                <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
+                <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Uitloggen</button>
               </div>
             </div>
           </div>
@@ -1226,30 +1308,28 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div>
-                {session?.user?.role === "teacher" ? (
-                  <TeamNameEdit
-                    team={viewingTeam}
-                    onNameChange={async (newName: string) => {
-                      if (!newName || newName.trim().length < 2) {
-                        alert("Teamnaam is ongeldig");
-                        return;
-                      }
-                      const res = await fetch(`/api/teams/${viewingTeam.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name: newName }),
-                      });
-                      if (!res.ok) {
-                        const data = await res.json().catch(() => ({}));
-                        alert(`Fout bij bijwerken: ${data.error || res.statusText}`);
-                        return;
-                      }
-                      fetchData();
-                    }}
-                  />
-                ) : (
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{viewingTeam.name}</h2>
-                )}
+                <TeamNameEdit
+                  team={viewingTeam}
+                  onNameChange={async (newName: string) => {
+                    if (!newName || newName.trim().length < 2) {
+                      alert("Teamnaam is ongeldig");
+                      return;
+                    }
+                    const res = await fetch(`/api/teams/${viewingTeam.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ name: newName }),
+                    });
+                    if (!res.ok) {
+                      const data = await res.json().catch(() => ({}));
+                      alert(`Fout bij bijwerken: ${data.error || res.statusText}`);
+                      return;
+                    }
+                    fetchData();
+                    // Also update the viewingTeam state
+                    setViewingTeam(prev => prev ? {...prev, name: newName} : null);
+                  }}
+                />
                 <p className="text-sm text-gray-600 dark:text-gray-400">{viewingTeam.class.name}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -1484,7 +1564,7 @@ export default function Home() {
                             </div>
                             {standup.blockers && (
                               <div>
-                                <h4 className="font-medium text-red-600 dark:text-red-400">Blokkades</h4>
+                                <h4 className="font-medium text-gray-900 dark:text-white">Blokkades</h4>
                                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{standup.blockers}</p>
                               </div>
                             )}
@@ -1559,7 +1639,7 @@ export default function Home() {
               </div>
             </div>
             <Link href="/classes" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">Klassen beheren</Link>
-            <button onClick={() => signOut()} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
+            <button onClick={() => signOut({ redirectTo: '/auth/signin' })} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Uitloggen</button>
           </div>
         </div>
       </header>
@@ -1601,11 +1681,36 @@ export default function Home() {
                               <h5 className="text-lg font-semibold text-gray-900 dark:text-white">{team.name}</h5>
                               {team.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{team.description}</p>}
                               <div className="mt-4 flex -space-x-2">
-                                {team.members.slice(0, 3).map((member, i) => (
-                                  <div key={i} className="h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800">
-                                    {member.user.image ? <Image src={member.user.image} alt={member.user.name || "Member"} width={32} height={32} /> : <div className="flex h-full w-full items-center justify-center bg-gray-300 text-xs dark:bg-gray-600">{member.user.name?.charAt(0) || "?"}</div>}
-                                  </div>
-                                ))}
+                                {team.members.slice(0, 3).map((member, i) => {
+                                  const hasStandupToday = Array.from(standupsToday).some(id => 
+                                    id === member.userId || 
+                                    id.trim() === member.userId?.trim()
+                                  );
+
+                                  return (
+                                    <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1 bg-white/60 dark:bg-black/20">
+                                      <div className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-white dark:border-gray-800 flex-shrink-0">
+                                        {member.user.image ? (
+                                          <>
+                                            <Image 
+                                              src={member.user.image} 
+                                              alt={member.user.name || "Member"} 
+                                              width={32} 
+                                              height={32}
+                                              className={hasStandupToday ? "brightness-110" : "brightness-90"}
+                                            />
+                                            {/* Rode overlay by default */}
+                                            <div className={`absolute inset-0 rounded-full ${hasStandupToday ? 'bg-green-500/40' : 'bg-red-500/30'}`}></div>
+                                          </>
+                                        ) : (
+                                          <div className={`flex h-full w-full items-center justify-center text-xs font-medium ${hasStandupToday ? 'bg-green-500 text-white' : 'bg-red-400 dark:bg-red-600 text-white'}`}>
+                                            {member.user.name?.charAt(0) || "?"}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                                 {team.members.length > 3 && <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-gray-200 text-xs dark:border-gray-800 dark:bg-gray-700">+{team.members.length - 3}</div>}
                               </div>
                             </button>
@@ -1624,9 +1729,9 @@ export default function Home() {
   );
 }
 
-function IssueCard({ issue, onMove, readOnly = false }: { issue: GitHubIssue; onMove: (issueId: string, status: string) => void; readOnly?: boolean }) {
+function IssueCard({ issue, onMove, onClose, readOnly = false }: { issue: GitHubIssue; onMove: (issueId: string, status: string) => void; onClose?: (issueId: string) => void; readOnly?: boolean }) {
   const labels = issue.labels ? JSON.parse(issue.labels) : [];
-  const isClosed = issue.state === "closed" || issue.status === "done";
+  const isClosed = issue.state === "closed";
   
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
@@ -1649,11 +1754,22 @@ function IssueCard({ issue, onMove, readOnly = false }: { issue: GitHubIssue; on
         </span>
       </div>
       {!isClosed && !readOnly && (
-        <div className="mt-3">
-          <select value={issue.status} onChange={(e) => onMove(issue.id, e.target.value)} className="w-full text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
-            <option value="todo">To Do</option>
-            <option value="in_progress">Doing</option>
-          </select>
+        <div className="mt-3 flex items-center gap-2">
+          {issue.status === "done" ? (
+            <div className="flex items-center gap-2 w-full">
+              <span className="flex-1 text-sm rounded px-2 py-1 text-gray-700 dark:text-gray-200 bg-green-50 dark:bg-green-900/20">Done</span>
+            </div>
+          ) : (
+            <>
+              <select value={issue.status} onChange={(e) => onMove(issue.id, e.target.value)} className="flex-1 text-xs rounded border border-gray-300 px-2 py-1 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                <option value="todo">To Do</option>
+                <option value="in_progress">Doing</option>
+              </select>
+              {onClose && issue.status === "in_progress" && (
+                <button onClick={() => onClose(issue.id)} className="ml-2 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700">Sluit issue</button>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

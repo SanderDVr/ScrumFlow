@@ -13,6 +13,7 @@ export const authOptions: NextAuthOptions = {
         url: "https://github.com/login/oauth/authorize",
         params: {
           scope: "read:user user:email repo",
+          prompt: "login",
         },
       },
       allowDangerousEmailAccountLinking: true,
@@ -50,6 +51,10 @@ export const authOptions: NextAuthOptions = {
         session.user.role = dbUser?.role || "student";
       }
       return session;
+    },
+    async signout() {
+      // Zorg ervoor dat de sessie volledig wordt gewist
+      return true;
     },
   },
 };

@@ -18,7 +18,7 @@ export default function SignIn() {
 
         <div className="mt-8">
           <button
-            onClick={() => signIn("github", { callbackUrl: "/" })}
+            onClick={() => signIn("github", { callbackUrl: "/", redirect: true })}
             className="flex w-full items-center justify-center gap-3 rounded-lg bg-gray-900 px-4 py-3 text-white transition-colors hover:bg-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600"
           >
             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
